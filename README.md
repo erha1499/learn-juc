@@ -2,6 +2,8 @@
 
 用“看得见”的方式学 Java 并发（JUC）。
 
+**在线阅读**：[交互学习手册](https://erha1499.github.io/learn-juc/) · [可视化实验室](https://erha1499.github.io/learn-juc/lab/index.html) · [完整文字版](content/handbook.md)
+
 这是一份按单元组织的 Java 并发学习手册，配有可以一步一步执行的交互演示：高亮的代码行是这一步正在执行的代码，旁边是这一刻对象头、CPU 缓存、等待队列里发生的变化。并发问题大多发生在“两个线程交错执行的那一刻”，只读文字很难在脑子里还原，所以关键机制都尽量做成能动手的演示。
 
 目标是理解原理，而不是背题。文中的结论尽量附上可运行的代码和真实输出，示例都在 JDK 17 上实际跑过。
@@ -10,11 +12,11 @@
 
 | 入口 | 内容 | 状态 |
 | --- | --- | --- |
-| [`docs/index.html`](docs/index.html) | **交互学习手册**：完整正文 + 嵌入式演示 + 可展开的面试回答 + 带答案的自测题 | 单元一到三已完成，含 14 个演示 |
-| [`docs/lab/index.html`](docs/lab/index.html) | **可视化实验室**：5 个独立实验（count++ 竞态、CPU 缓存可见性、synchronized 与 Monitor、AQS 排队、线程池模拟器） | 可用 |
-| [`content/handbook.md`](content/handbook.md) | **完整文字版**：11 个单元的全部正文，GitHub 上可直接阅读 | 完成 |
+| [交互学习手册](https://erha1499.github.io/learn-juc/)（`docs/index.html`） | 完整正文 + 嵌入式演示 + 可展开的面试回答 + 带答案的自测题 | 单元一到三已完成，含 14 个演示 |
+| [可视化实验室](https://erha1499.github.io/learn-juc/lab/index.html)（`docs/lab/index.html`） | 5 个独立实验：count++ 竞态、CPU 缓存可见性、synchronized 与 Monitor、AQS 排队、线程池模拟器 | 可用 |
+| [完整文字版](content/handbook.md)（`content/handbook.md`） | 11 个单元的全部正文，GitHub 上可直接阅读 | 完成 |
 
-交互版是纯静态网页，克隆仓库后直接用浏览器打开 `docs/index.html` 即可（字体从 Google Fonts 加载，离线时会退回系统字体）。也可以在仓库的 Settings → Pages 里选择 `main` 分支的 `/docs` 目录，发布成在线网站。
+网站由 GitHub Pages 从 `main` 分支的 `/docs` 目录发布，推送后一两分钟自动更新。它是纯静态网页，克隆仓库后直接用浏览器打开 `docs/index.html` 也能离线看（字体从 Google Fonts 加载，离线时会退回系统字体）。
 
 ## 学习路线
 
