@@ -1,0 +1,1249 @@
+<title>JUC 交互学习手册</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700;900&display=swap">
+<style>
+/* 布局：左侧目录（单元 → 小节），右侧一次显示一个单元。
+   正文是一栏可读宽度；“动手”演示是正文里的卡片：上面旁白和控制，下面左代码、右运行状态。 */
+:root{
+  --bg:#f1f3f7; --surface:#ffffff; --panel:#f6f8fb; --surface-2:#e8ecf2; --ink:#152033; --ink-2:#47546c; --ink-3:#76829a;
+  --line:#d4dae4; --line-2:#b9c3d2;
+  --accent:#2b55c4; --accent-ink:#ffffff; --accent-bg:rgba(43,85,196,.09);
+  --t1:#2b55c4; --t2:#b13a6d; --t3:#0d8475; --t4:#8a5a22; --on-th:#ffffff;
+  --ok:#1b8447; --bad:#c2352c; --wait:#9a650b; --idle:#6f7b91;
+  --ok-bg:rgba(27,132,71,.11); --bad-bg:rgba(194,53,44,.10); --wait-bg:rgba(162,106,12,.13); --idle-bg:rgba(111,123,145,.13);
+  --c-kw:#8b2fa6; --c-str:#b0482a; --c-com:#76829a; --c-num:#0d7f70; --c-ty:#1d5c9c;
+  --code-bg:#f6f8fb;
+  --k-mark:#2b55c4; --k-klass:#0d8475; --k-len:#8a5a22; --k-field:#1b8447; --k-ref:#b13a6d; --k-pad:#9aa5b7;
+  --f-display:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+  --f-body:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1219; --surface:#151c27; --panel:#1a2230; --surface-2:#212b39; --ink:#e4e9f1; --ink-2:#a6b1c3; --ink-3:#7d899d;
+    --line:#2a3443; --line-2:#3d495b;
+    --accent:#86a6ff; --accent-ink:#0d1219; --accent-bg:rgba(134,166,255,.12);
+    --t1:#86a6ff; --t2:#f08bb6; --t3:#4fcfbd; --t4:#d9a46a; --on-th:#0d1219;
+    --ok:#5bc98a; --bad:#ff7a70; --wait:#f0b350; --idle:#8e9ab0;
+    --ok-bg:rgba(91,201,138,.14); --bad-bg:rgba(255,122,112,.13); --wait-bg:rgba(240,179,80,.14); --idle-bg:rgba(142,154,176,.15);
+    --c-kw:#d39bf0; --c-str:#f0a080; --c-com:#7d899d; --c-num:#5fd3c2; --c-ty:#8cbcf0;
+    --code-bg:#121923;
+    --k-mark:#86a6ff; --k-klass:#4fcfbd; --k-len:#d9a46a; --k-field:#5bc98a; --k-ref:#f08bb6; --k-pad:#5a667a;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1219; --surface:#151c27; --panel:#1a2230; --surface-2:#212b39; --ink:#e4e9f1; --ink-2:#a6b1c3; --ink-3:#7d899d;
+  --line:#2a3443; --line-2:#3d495b;
+  --accent:#86a6ff; --accent-ink:#0d1219; --accent-bg:rgba(134,166,255,.12);
+  --t1:#86a6ff; --t2:#f08bb6; --t3:#4fcfbd; --t4:#d9a46a; --on-th:#0d1219;
+  --ok:#5bc98a; --bad:#ff7a70; --wait:#f0b350; --idle:#8e9ab0;
+  --ok-bg:rgba(91,201,138,.14); --bad-bg:rgba(255,122,112,.13); --wait-bg:rgba(240,179,80,.14); --idle-bg:rgba(142,154,176,.15);
+  --c-kw:#d39bf0; --c-str:#f0a080; --c-com:#7d899d; --c-num:#5fd3c2; --c-ty:#8cbcf0;
+  --code-bg:#121923;
+  --k-mark:#86a6ff; --k-klass:#4fcfbd; --k-len:#d9a46a; --k-field:#5bc98a; --k-ref:#f08bb6; --k-pad:#5a667a;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--ink); font-family:var(--f-body); font-size:16px; line-height:1.75; margin:0;
+  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); padding-block:0 64px}
+h1,h2,h3{text-wrap:balance}
+button{font:inherit; color:inherit}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+code,.mono{font-family:var(--f-mono)}
+
+/* ---------- 骨架 ---------- */
+.app{max-width:1260px; margin:0 auto; display:grid; grid-template-columns:250px minmax(0, 1fr); gap:40px}
+.side{position:sticky; top:env(safe-area-inset-top, 0px); align-self:start; max-height:100vh; overflow:auto; padding-block:28px 24px; font-size:14px}
+.brand{display:block; font-family:var(--f-display); font-weight:900; font-size:19px; color:var(--ink); text-decoration:none; line-height:1.3}
+.brand small{display:block; font:600 11px var(--f-mono); color:var(--ink-3); letter-spacing:.06em; margin-top:4px}
+.toc-btn{display:none}
+.toc{display:grid; gap:2px; margin-top:18px}
+.toc a{text-decoration:none; color:var(--ink-2); border-radius:7px; padding:4px 8px; display:block}
+.toc a:hover{background:var(--surface)}
+.toc .toc-u{font-weight:700; color:var(--ink); display:flex; gap:8px; align-items:baseline}
+.toc .toc-n{font:600 11px var(--f-mono); color:var(--ink-3); flex:none}
+.toc .toc-u.on{background:var(--surface); box-shadow:inset 3px 0 0 var(--accent)}
+.toc-s{list-style:none; margin:2px 0 8px; padding:0 0 0 14px; display:none; font-size:13px; line-height:1.5}
+.toc-unit.open .toc-s{display:grid; gap:1px}
+.toc-s a{padding:3px 8px}
+.toc-s a.on{color:var(--accent); background:var(--accent-bg)}
+.toc-later{display:flex; gap:8px; align-items:baseline; padding:4px 8px; color:var(--ink-3)}
+.toc-later a{padding:0; margin-left:auto; font-size:12px; color:var(--ink-3); text-decoration:underline}
+.toc-sep{font:600 11px var(--f-mono); color:var(--ink-3); letter-spacing:.06em; margin:12px 8px 4px}
+.side-foot{margin-top:18px; font-size:12.5px; color:var(--ink-3); display:grid; gap:4px; padding:0 8px}
+.main{min-width:0; padding-block:36px 0}
+.view{min-width:0}
+@media (max-width: 980px){
+  .app{grid-template-columns:minmax(0, 1fr); gap:0}
+  .side{position:static; max-height:none; padding-block:18px 8px; border-bottom:1px solid var(--line)}
+  .side-top{display:flex; align-items:center; justify-content:space-between; gap:12px}
+  .toc-btn{display:inline-block}
+  .toc{display:none}
+  .side.open .toc{display:grid}
+  .side-foot{display:none}
+  .side.open .side-foot{display:grid}
+  .main{padding-top:20px}
+}
+
+/* ---------- 正文 ---------- */
+.prose{font-size:16px; line-height:1.85}
+.prose > *{max-width:860px}
+.prose p, .prose li{max-width:44em}
+.prose p{margin:12px 0}
+.prose h2{font-family:var(--f-display); font-weight:900; font-size:clamp(21px, 2.6vw, 25px); line-height:1.35; margin:52px 0 14px; padding-top:18px; border-top:1px solid var(--line)}
+.prose section{scroll-margin-top:16px}
+.prose ul,.prose ol{padding-left:1.4em; margin:10px 0}
+.prose li{margin:5px 0}
+.prose li::marker{color:var(--ink-3)}
+.prose strong{font-weight:700; color:var(--ink)}
+.prose :not(pre) > code{font-size:.84em; background:var(--surface-2); padding:1px 5px; border-radius:4px; word-break:break-word}
+.prose blockquote{margin:12px 0; padding:10px 16px; border-left:3px solid var(--line-2); color:var(--ink-2); background:var(--surface); border-radius:0 8px 8px 0}
+pre.codeblock{position:relative; background:var(--code-bg); border:1px solid var(--line); border-radius:10px; padding:14px 16px; overflow-x:auto; font:13px/1.7 var(--f-mono); margin:14px 0; max-width:860px}
+pre.codeblock code{background:none; padding:0; font-size:inherit; white-space:pre}
+pre.codeblock[data-lang="text"]{color:var(--ink-2)}
+.copy{position:sticky; float:right; left:0; top:0; margin:-6px -8px 0 8px; font:12px var(--f-body); border:1px solid var(--line-2); background:var(--surface); color:var(--ink-3); border-radius:6px; padding:1px 8px; cursor:pointer}
+.copy:hover{color:var(--accent); border-color:var(--accent)}
+.tbl{overflow-x:auto; margin:14px 0; max-width:860px}
+.tbl table{border-collapse:collapse; width:100%; font-size:14.5px; line-height:1.6; background:var(--surface)}
+.tbl th,.tbl td{border:1px solid var(--line); padding:7px 10px; text-align:left; vertical-align:top}
+.tbl th{background:var(--surface-2); font-weight:700}
+.c-kw{color:var(--c-kw)} .c-str{color:var(--c-str)} .c-com{color:var(--c-com); font-style:italic} .c-num{color:var(--c-num)} .c-ty{color:var(--c-ty)}
+
+.u-head{display:grid; gap:6px; margin-bottom:8px}
+.u-no{font:600 12px var(--f-mono); color:var(--accent); letter-spacing:.08em}
+.u-head h1{font-family:var(--f-display); font-weight:900; font-size:clamp(30px, 4.4vw, 42px); line-height:1.2; margin:0}
+.u-sub{margin:0; color:var(--ink-2); font-size:17px}
+.motto{margin:6px 0 0; font-size:16.5px; border-left:3px solid var(--accent); padding-left:12px; color:var(--ink)}
+.core{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px}
+.goals{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 18px; display:grid; gap:6px; margin:14px 0}
+.g-h{font-weight:700; font-size:14px; color:var(--ink-2)}
+.g-row{display:grid; grid-template-columns:auto minmax(0, 1fr); gap:10px; align-items:baseline; font-size:15px}
+.g-tag{font:600 11.5px var(--f-mono); border-radius:999px; padding:1px 9px}
+.g-must{color:var(--bad); background:var(--bad-bg)} .g-plus{color:var(--accent); background:var(--accent-bg)} .g-know{color:var(--idle); background:var(--idle-bg)}
+.hint{color:var(--ink-3); font-size:14px}
+details.qa{border:1px solid var(--line); border-radius:12px; background:var(--surface); margin:10px 0; max-width:860px}
+details.qa summary{cursor:pointer; padding:12px 16px; font-weight:700; list-style:none; display:flex; gap:10px; align-items:baseline}
+details.qa summary::-webkit-details-marker{display:none}
+details.qa summary::before{content:"展开"; flex:none; font:600 11px var(--f-mono); color:var(--accent); background:var(--accent-bg); border-radius:5px; padding:1px 7px}
+details.qa[open] summary::before{content:"收起"}
+details.qa .ans{padding:0 16px 14px; color:var(--ink-2); max-width:none}
+.quizlist{list-style:none; padding:0; counter-reset:q; display:grid; gap:10px; max-width:860px}
+.qz{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 16px; display:grid; gap:8px; counter-increment:q; max-width:none}
+.qz-q{font-weight:700}
+.qz-q::before{content:counter(q) ". "; color:var(--ink-3); font-family:var(--f-mono)}
+.qz-act{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+.qz-ok{font-size:14px; color:var(--ink-2); display:inline-flex; gap:6px; align-items:center; cursor:pointer}
+.qz.done{border-color:var(--ok)}
+.qz-a{color:var(--ink-2); border-top:1px dashed var(--line-2); padding-top:8px}
+.qz-progress{margin-left:8px; color:var(--ok); font-weight:700}
+.pager{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:56px; padding-top:18px; border-top:1px solid var(--line); max-width:860px}
+.pager a{text-decoration:none; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 14px; display:grid; min-width:0}
+.pager a span{font:600 11px var(--f-mono); color:var(--ink-3)}
+.pager a b{color:var(--ink)}
+.pager a:hover{border-color:var(--accent)}
+
+/* ---------- 首页 ---------- */
+.home-hero{display:grid; gap:12px; max-width:860px; margin-bottom:12px}
+.eyebrow{font:600 12px var(--f-mono); letter-spacing:.08em; color:var(--ink-3)}
+.home-hero h1{font-family:var(--f-display); font-weight:900; font-size:clamp(32px, 5vw, 48px); line-height:1.15; margin:0}
+.lead{margin:0; color:var(--ink-2); font-size:17px}
+.unitmap{list-style:none; margin:18px 0 0; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:10px}
+.unitmap li{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 14px; display:grid; gap:3px; align-content:start; font-size:14px; line-height:1.55}
+.unitmap li.ready{border-color:var(--accent)}
+.unitmap .un{font:600 11px var(--f-mono); color:var(--ink-3)}
+.unitmap .nm{font-weight:700; font-size:15px}
+.unitmap .mt{color:var(--ink-2); font-size:13px}
+.unitmap .lk{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px}
+.unitmap .lk a{font-size:12.5px; text-decoration:none; border-radius:999px; padding:1px 10px; background:var(--accent-bg)}
+.unitmap .lk a.go{background:var(--accent); color:var(--accent-ink); font-weight:700}
+.unitmap .lk a:not(.go){color:var(--ink-2); background:var(--surface-2)}
+
+/* ---------- 演示卡片 ---------- */
+.lab{margin:26px 0; border:1px solid var(--line-2); border-radius:14px; background:var(--surface); padding:16px 18px 18px; display:grid; gap:14px; container-type:inline-size; max-width:none; transition:border-color .2s, box-shadow .2s}
+.lab.is-active{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-bg)}
+.lab > *{min-width:0}
+.lab-top{display:grid; gap:4px}
+.lab-kind{font:600 11.5px var(--f-mono); color:var(--accent); letter-spacing:.06em}
+.lab-title{font-size:18px; margin:0; line-height:1.4}
+.lab-intro{margin:0; color:var(--ink-2); font-size:14.5px; line-height:1.7}
+.narr{display:grid; gap:2px; min-height:96px; background:var(--panel); border-radius:10px; padding:10px 14px}
+.narr-k{font:600 11.5px var(--f-mono); color:var(--ink-3)}
+.narr-t{font-size:16px; font-weight:700; margin:0; line-height:1.5}
+.narr-p{margin:0; color:var(--ink-2); font-size:14.5px; line-height:1.7}
+.narr-p b{color:var(--ink)}
+.ctrl{display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between}
+.btns{display:flex; flex-wrap:wrap; gap:8px}
+.btn{border:1px solid var(--line-2); background:var(--surface); border-radius:8px; padding:5px 12px; cursor:pointer; font-size:14px; white-space:nowrap; line-height:1.6}
+.btn.sm{font-size:13px; padding:2px 10px}
+.btn:hover:not(:disabled){border-color:var(--accent); color:var(--accent)}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:700}
+.btn.primary:hover:not(:disabled){filter:brightness(1.07); color:var(--accent-ink)}
+.btn.ghost{border-color:transparent; color:var(--ink-3)}
+.btn:disabled{opacity:.4; cursor:not-allowed}
+.seg{display:inline-flex; flex-wrap:wrap; border:1px solid var(--line-2); border-radius:9px; padding:2px; gap:2px; background:var(--surface-2)}
+.seg button{border:0; background:transparent; border-radius:7px; padding:4px 11px; cursor:pointer; font-size:13.5px; color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--surface); color:var(--ink); font-weight:700; box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.dots{list-style:none; margin:0; padding:0; display:flex; gap:4px; flex-wrap:wrap}
+.dots button{width:24px; height:6px; border-radius:3px; border:0; background:var(--line); cursor:pointer; padding:0}
+.dots button.on{background:var(--accent)} .dots button.past{background:var(--line-2)}
+.bench{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.25fr); gap:14px; align-items:start}
+.bench.stack{grid-template-columns:minmax(0, 1fr)}
+@container (max-width: 720px){ .bench{grid-template-columns:minmax(0, 1fr)} }
+@media (max-width: 640px){ .bench{grid-template-columns:minmax(0, 1fr)} }
+.code-col{display:grid; gap:10px; min-width:0}
+.stage{min-width:0}
+.code{background:var(--code-bg); border:1px solid var(--line); border-radius:10px; overflow:hidden}
+.code-h{font:600 11.5px var(--f-mono); color:var(--ink-3); padding:6px 12px; border-bottom:1px solid var(--line); background:var(--surface-2)}
+.code-b{position:relative; max-height:360px; overflow:auto; padding:6px 0; font:12.5px/1.75 var(--f-mono)}
+.ln{display:flex; align-items:center; white-space:pre; min-width:100%; width:max-content; padding-right:10px}
+.ln .no{flex:none; width:2.8em; color:var(--ink-3); text-align:right; padding-right:12px; opacity:.6; user-select:none; font-size:11px}
+.ln .tx{flex:1 0 auto}
+.ln.hl{background:var(--accent-bg); background:color-mix(in srgb, var(--c) 15%, transparent); box-shadow:inset 3px 0 0 var(--c)}
+.ln .who{position:sticky; right:6px; flex:none; font:600 10.5px var(--f-mono); color:var(--on-th); background:var(--c); border-radius:4px; padding:0 5px; margin-left:12px}
+.box{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; min-width:0}
+.box-h{font-size:13px; font-weight:700; color:var(--ink-2); margin-bottom:6px}
+.rk{font:600 11.5px var(--f-mono); color:var(--ink-3); letter-spacing:.02em}
+.none{color:var(--ink-3); font-size:13px}
+.note{color:var(--ink-3); font-size:12.5px}
+.th{display:inline-flex; align-items:center; justify-content:center; min-width:30px; height:24px; padding:0 7px; border-radius:6px; background:var(--c); color:var(--on-th); font:600 12px var(--f-mono); vertical-align:middle; white-space:nowrap}
+.pill{display:inline-block; font:600 11px var(--f-mono); padding:1px 8px; border-radius:999px; white-space:nowrap; line-height:1.7}
+.pill.ok{color:var(--ok); background:var(--ok-bg)} .pill.bad{color:var(--bad); background:var(--bad-bg)}
+.pill.wait{color:var(--wait); background:var(--wait-bg)} .pill.idle{color:var(--idle); background:var(--idle-bg)}
+.tag{font:600 10.5px var(--f-mono); color:var(--accent); border:1px solid var(--accent); border-radius:4px; padding:0 5px; white-space:nowrap}
+.chip{display:inline-flex; align-items:center; font:600 12px var(--f-mono); border:1px solid var(--line-2); background:var(--surface); border-radius:6px; padding:1px 8px}
+.chip.warn{border-color:var(--wait); color:var(--wait); background:var(--wait-bg)}
+.chg{animation:flash 1.3s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)} 100%{box-shadow:0 0 0 0 transparent}}
+.grid2{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px}
+.stack-v{display:grid; gap:10px}
+@container (max-width: 520px){ .grid2{grid-template-columns:minmax(0, 1fr)} }
+.verdict{border-radius:10px; padding:10px 14px; font-size:14.5px; line-height:1.7}
+.verdict.bad{background:var(--bad-bg); border:1px solid var(--bad)}
+.verdict.ok{background:var(--ok-bg); border:1px solid var(--ok)}
+.big{font:700 28px/1.2 var(--f-mono); color:var(--accent)}
+.kv{display:grid; gap:2px}
+.thr{width:100%; border-collapse:collapse; font-size:13px; line-height:1.5}
+.thr th{font:600 11px var(--f-mono); color:var(--ink-3); text-align:left; padding:4px 6px; border-bottom:1px solid var(--line)}
+.thr td{padding:6px; border-bottom:1px solid var(--line); vertical-align:top}
+.thr tr:last-child td{border-bottom:0}
+.tn{font-size:12px; color:var(--ink-3)}
+.js{font-size:11.5px; word-break:break-all}
+.tbl-wrap{overflow-x:auto}
+
+/* Monitor 区域 */
+.zones{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px}
+@container (max-width: 460px){ .zones{grid-template-columns:minmax(0, 1fr)} }
+.zone{border:1px solid var(--line-2); border-radius:9px; padding:7px 9px; display:grid; gap:5px; align-content:start; min-height:88px; background:var(--surface)}
+.zone .zk{font:700 12.5px var(--f-mono)}
+.zone .zs{font-size:11.5px; color:var(--ink-3)}
+.zone .toks{display:flex; gap:5px; flex-wrap:wrap; min-height:26px; align-items:center}
+.z-owner{border-color:var(--ok); background:var(--ok-bg)} .z-entry{border-color:var(--bad); background:var(--bad-bg)} .z-wait{border-color:var(--wait); background:var(--wait-bg)}
+
+/* Mark Word 条 / 比特 */
+.mw-head{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:6px}
+.mw-head code{font-size:13px; font-weight:600}
+.strip-wrap{overflow-x:auto}
+.strip{display:flex; gap:2px; min-width:280px}
+.seg-b{min-width:0; background:var(--surface-2); border-radius:5px; padding:3px 5px; display:grid; overflow:hidden}
+.seg-b .sv{font:600 11.5px var(--f-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.seg-b .sl{font-size:10.5px; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.seg-b.key{background:var(--accent-bg); outline:1.5px solid var(--accent); min-width:56px; flex-shrink:0}
+.seg-b.key .sv{color:var(--accent); font-size:13px}
+.bits{display:grid; gap:4px}
+.bitrow{display:grid; grid-template-columns:repeat(32, minmax(0, 1fr)); gap:2px}
+.bit{font:600 clamp(9px, 1.6cqi, 12px)/1 var(--f-mono); text-align:center; padding:5px 0; border-radius:3px; background:var(--surface-2); color:var(--ink-2)}
+.bitaxis{display:flex; justify-content:space-between; font:10.5px var(--f-mono); color:var(--ink-3)}
+.k-u{opacity:.55}
+.k-h{background:color-mix(in srgb, var(--t3) 22%, transparent); color:var(--ink)}
+.k-a{background:color-mix(in srgb, var(--t4) 22%, transparent); color:var(--ink)}
+.k-b{background:color-mix(in srgb, var(--t2) 22%, transparent); color:var(--ink)}
+.k-l{background:var(--accent); color:var(--accent-ink)}
+.k-t,.k-p{background:color-mix(in srgb, var(--t1) 20%, transparent); color:var(--ink)}
+.k-e{background:color-mix(in srgb, var(--t2) 14%, transparent); color:var(--ink)}
+.seglegend{list-style:none; margin:8px 0 0; padding:0; display:grid; gap:3px; font-size:13px}
+.seglegend li{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.seglegend .sw{width:12px; height:12px; border-radius:3px; flex:none}
+.seglegend code{font-size:12.5px}
+
+/* 对象布局 */
+.bytemap{display:grid; gap:4px}
+.brow{display:grid; grid-template-columns:3.2em minmax(0, 1fr); gap:6px; align-items:stretch}
+.boff{font:600 11px var(--f-mono); color:var(--ink-3); align-self:center; text-align:right}
+.bcells{display:grid; grid-template-columns:repeat(8, minmax(0, 1fr)); gap:3px}
+.bpart{border-radius:6px; padding:5px 6px; font-size:12px; line-height:1.35; color:var(--ink); border:1.5px solid var(--kc); background:color-mix(in srgb, var(--kc) 16%, transparent); min-width:0; overflow:hidden}
+.bpart b{display:block; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.bpart span{font:11px var(--f-mono); color:var(--ink-3)}
+.bpart.pad{border-style:dashed; background:repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--kc) 22%, transparent) 5px 7px)}
+.total{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; margin-top:8px}
+.total b{font:700 22px var(--f-mono); color:var(--accent)}
+
+/* 状态机 */
+.sm-svg{width:100%; height:auto; display:block}
+.sm-node rect{fill:var(--surface); stroke:var(--line-2); stroke-width:1.25}
+.sm-node text{fill:var(--ink); font:600 13px var(--f-mono)}
+.sm-node.cur rect{fill:var(--accent-bg); stroke:var(--accent); stroke-width:2.5}
+.sm-node.cur text{fill:var(--accent)}
+.sm-edge{fill:none; stroke:var(--line-2); stroke-width:1.5}
+.sm-edge.on{stroke:var(--accent); stroke-width:3}
+.sm-arrow{fill:var(--line-2)} .sm-arrow-on{fill:var(--accent)}
+.sm-lbl{fill:var(--ink-3); font:11px var(--f-body)}
+.sm-acts{display:flex; flex-wrap:wrap; gap:8px}
+.sm-hist{font:12.5px var(--f-mono); color:var(--ink-3); word-break:break-all}
+
+/* happens-before */
+.hb-svg{width:100%; height:auto; display:block}
+.hb-box rect{fill:var(--surface); stroke:var(--line-2); stroke-width:1.25}
+.hb-box.on rect{stroke:var(--accent); stroke-width:2}
+.hb-box text{fill:var(--ink); font:600 13px var(--f-mono)}
+.hb-box .sub{fill:var(--ink-3); font:11.5px var(--f-body)}
+.hb-col{fill:var(--ink-3); font:600 12px var(--f-body)}
+.hb-e{fill:none; stroke-width:2.2}
+.hb-e.ok{stroke:var(--accent)}
+.hb-e.der{stroke:var(--ok); stroke-dasharray:6 5}
+.hb-e.no{stroke:var(--bad); stroke-dasharray:4 4}
+.hb-l{font:11.5px var(--f-body)}
+.hb-l.ok{fill:var(--accent)} .hb-l.der{fill:var(--ok)} .hb-l.no{fill:var(--bad)}
+.hb-m-ok{fill:var(--accent)} .hb-m-der{fill:var(--ok)}
+
+/* 进度条 */
+.bar{height:7px; border-radius:4px; background:var(--surface-2); overflow:hidden}
+.bar i{display:block; height:100%; background:var(--accent); transition:width .4s}
+.lane{display:grid; gap:6px}
+.lane-h{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.reg{font:600 13px var(--f-mono)}
+
+/* 竞态 */
+.bc{list-style:none; margin:0; padding:0; display:grid; gap:2px; font:12.5px/1.6 var(--f-mono)}
+.bc li{display:grid; grid-template-columns:16px minmax(0, 1fr) auto; gap:6px; padding:3px 8px; border-radius:6px; color:var(--ink-2)}
+.bc li.done{color:var(--ink-3); text-decoration:line-through; text-decoration-color:var(--line-2)}
+.bc li.cur{background:var(--accent-bg); color:var(--ink); font-weight:600}
+.bc li .pc{color:var(--accent)}
+.bc li .hint2{font-family:var(--f-body); font-size:12px; color:var(--ink-3)}
+.opstack{display:flex; gap:10px; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:5px 10px}
+.log{list-style:none; margin:0; padding:0; display:grid; gap:5px; font-size:13px; color:var(--ink-2); max-height:220px; overflow:auto}
+.log li{display:grid; grid-template-columns:auto minmax(0, 1fr); gap:8px}
+.log .tm{font:600 11px var(--f-mono); color:var(--ink-3); padding-top:2px}
+
+/* 可见性 */
+.core-c{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; display:grid; gap:8px}
+.core-h{display:flex; gap:8px; align-items:center; font-weight:700; font-size:14px}
+.rowv{display:grid; gap:3px}
+.slots{display:flex; flex-wrap:wrap; gap:6px; min-height:28px; align-items:center; border:1px dashed var(--line-2); border-radius:8px; padding:3px 6px}
+.cline{display:flex; gap:10px; align-items:center; border:1px solid var(--line-2); border-radius:8px; padding:4px 8px; flex-wrap:wrap}
+.cline code{font-size:13.5px; font-weight:600}
+.mesi{font:700 12.5px var(--f-mono); width:24px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; border:1px solid currentColor}
+.m-M{color:var(--accent)} .m-E{color:var(--t3)} .m-S{color:var(--ok)} .m-I{color:var(--bad)}
+.bus{display:grid; gap:4px; border-top:2px solid var(--line-2); border-bottom:2px solid var(--line-2); padding:6px 4px}
+.bus::before{content:"总线 · 一致性消息"; font:600 11px var(--f-mono); color:var(--ink-3)}
+.msg{font:12.5px var(--f-mono)}
+.memrow{display:flex; gap:12px; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 12px}
+.memrow code{font-size:14px; font-weight:700}
+.bview{display:flex; gap:10px; align-items:center; border-radius:10px; padding:8px 12px; font-size:14px; border:1px solid var(--line); background:var(--surface)}
+.bview.exit{background:var(--ok-bg); border-color:var(--ok)} .bview.forever{background:var(--bad-bg); border-color:var(--bad)}
+
+/* 锁升级阶梯 */
+.ladder{display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px}
+@container (max-width: 520px){ .ladder{grid-template-columns:repeat(2, minmax(0, 1fr))} }
+.rung{border:1px solid var(--line-2); border-radius:9px; padding:7px 9px; background:var(--surface); display:grid; gap:2px; opacity:.6}
+.rung b{font-size:13.5px}
+.rung span{font-size:11.5px; color:var(--ink-3); line-height:1.45}
+.rung.on{opacity:1; border-color:var(--accent); background:var(--accent-bg); box-shadow:0 0 0 1px var(--accent)}
+.rung.past{opacity:.85}
+
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important; scroll-behavior:auto !important} }
+</style>
+
+<div class="app">
+  <aside class="side" id="side">
+    <div class="side-top">
+      <a class="brand" href="#home">JUC 交互学习手册<small>试点 · 单元一到三</small></a>
+      <button type="button" class="btn sm toc-btn" id="toc-btn" aria-expanded="false" aria-controls="toc">目录</button>
+    </div>
+    <nav class="toc" id="toc" aria-label="目录"></nav>
+    <div class="side-foot">
+      <div>完整文字版：<a href="https://github.com/erha1499/learn-juc/blob/main/content/handbook.md" target="_blank" rel="noopener">handbook.md</a></div>
+      <div>单元五到七的演示：<a href="lab/index.html">可视化实验室</a></div>
+      <div>源码与示例代码：<a href="https://github.com/erha1499/learn-juc" target="_blank" rel="noopener">GitHub</a></div>
+    </div>
+  </aside>
+  <main class="main" id="main">
+<!--VIEWS-->
+  </main>
+</div>
+
+<script>
+(() => {
+'use strict';
+const TOC = /*TOC_JSON*/null;
+const DOC_URL = 'https://github.com/erha1499/learn-juc/blob/main/content/handbook.md';
+const LAB_URL = 'lab/index.html';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const RM = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)').matches : false;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const KW = new Set('public private protected static final void int long boolean new synchronized while if else return for try catch true false null volatile this class extends throw'.split(' '));
+function hiJava(src) {
+  const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|\b([A-Za-z_][A-Za-z0-9_]*)\b|\b(\d+)\b/g;
+  let out = '', last = 0, m;
+  while ((m = re.exec(src))) {
+    out += esc(src.slice(last, m.index));
+    if (m[1]) out += '<span class="c-com">' + esc(m[1]) + '</span>';
+    else if (m[2]) out += '<span class="c-str">' + esc(m[2]) + '</span>';
+    else if (m[3]) out += KW.has(m[3]) ? '<span class="c-kw">' + m[3] + '</span>' : (/^[A-Z]/.test(m[3]) ? '<span class="c-ty">' + m[3] + '</span>' : m[3]);
+    else if (m[4]) out += '<span class="c-num">' + m[4] + '</span>';
+    last = re.lastIndex;
+  }
+  return out + esc(src.slice(last));
+}
+const TCOL = {A: 't1', B: 't2', C: 't3', T1: 't1', T2: 't2', T3: 't3', T4: 't4', main: 't3', waiter: 't1', owner: 't2', blocked: 't3', t: 't1'};
+const th = (t, key) => '<span class="th" style="--c:var(--' + (TCOL[t] || 't1') + ')"' + (key ? ' data-flip="' + key + '"' : '') + '>' + t + '</span>';
+const PILL = {RUNNABLE: 'ok', BLOCKED: 'bad', WAITING: 'wait', TIMED_WAITING: 'wait', NEW: 'idle', TERMINATED: 'idle'};
+const pill = st => '<span class="pill ' + (PILL[st] || 'idle') + '">' + st + '</span>';
+const chg = (step, k) => (step && step.chg && step.chg.includes(k) ? ' chg' : '');
+
+function flip(container, update) {
+  const before = {};
+  if (!RM) $$('[data-flip]', container).forEach(el => { before[el.dataset.flip] = el.getBoundingClientRect(); });
+  update();
+  if (RM || !container.offsetParent) return;
+  $$('[data-flip]', container).forEach(el => {
+    if (!el.animate) return;
+    const b = before[el.dataset.flip], a = el.getBoundingClientRect();
+    if (!b) { el.animate([{opacity: 0, transform: 'scale(.8)'}, {opacity: 1, transform: 'none'}], {duration: 320, easing: 'ease-out'}); return; }
+    const dx = b.left - a.left, dy = b.top - a.top;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) el.animate([{transform: 'translate(' + dx + 'px,' + dy + 'px)'}, {transform: 'none'}], {duration: 560, easing: 'cubic-bezier(.2,.75,.2,1)'});
+  });
+}
+function codePanel(p, hl) {
+  const marks = {};
+  (hl || []).forEach(h => {
+    if (h.p !== p.id) return;
+    let idx = h.i;
+    if (idx == null) {
+      idx = p.lines.findIndex(L => L.includes(h.f));
+      if (idx < 0 && window.console) console.warn('高亮行没找到：', h.f);
+    }
+    if (idx >= 0) marks[idx] = h.t || 'A';
+  });
+  const body = p.lines.map((L, i) => {
+    const m = marks[i];
+    return '<div class="ln' + (m ? ' hl' : '') + '"' + (m ? ' style="--c:var(--' + TCOL[m] + ')"' : '') + '><span class="no">' + (p.nums ? esc(p.nums[i]) : i + 1) + '</span><span class="tx">' + ((p.plain ? esc(L) : hiJava(L)) || ' ') + '</span>' + (m ? '<span class="who">' + m + '</span>' : '') + '</div>';
+  }).join('');
+  return '<div class="code"><div class="code-h">' + esc(p.title) + '</div><div class="code-b">' + body + '</div></div>';
+}
+function scrollHl(col) {
+  $$('.code-b', col).forEach(b => {
+    const el = $('.hl', b);
+    if (!el) return;
+    const top = el.offsetTop;
+    if (top < b.scrollTop + 8 || top > b.scrollTop + b.clientHeight - 40) b.scrollTop = Math.max(0, top - b.clientHeight / 3);
+  });
+}
+function zones(mon) {
+  const z = (cls, k, list, sub) => '<div class="zone ' + cls + '"><div class="zk">' + k + '</div><div class="toks">' + (list.length ? list.map(t => th(t, 'tok-' + t)).join('') : '<span class="none">空</span>') + '</div><div class="zs">' + sub + '</div></div>';
+  return '<div class="zones">' + z('z-owner', 'Owner', mon.owner ? [mon.owner] : [], '持有锁的线程') + z('z-entry', 'EntryList', mon.entry, '等锁 · BLOCKED') + z('z-wait', 'WaitSet', mon.wait, '调用了 wait · WAITING') + '</div>';
+}
+function thrTable(names, tmap, st) {
+  return '<div class="tbl-wrap"><table class="thr"><thead><tr><th>线程</th><th>状态</th><th>jstack 里能看到</th></tr></thead><tbody>' + names.map(t => {
+    const x = tmap[t];
+    return '<tr class="' + chg(st, 'th' + t).trim() + '"><td>' + th(t) + '</td><td>' + pill(x.st) + (x.note ? '<div class="tn">' + x.note + '</div>' : '') + '</td><td><code class="js">' + esc(x.js || '—') + '</code></td></tr>';
+  }).join('') + '</tbody></table></div>';
+}
+const TS = (st, js, note) => ({st, js: js || '', note: note || ''});
+
+/* ===================== 键盘 / 活动演示 ===================== */
+let ACTIVE = null;
+const STOPPERS = [];
+function setActive(l) { if (ACTIVE === l) return; if (ACTIVE) ACTIVE.classList.remove('is-active'); ACTIVE = l; l.classList.add('is-active'); }
+document.addEventListener('pointerdown', e => { const l = e.target.closest('.lab'); if (l) setActive(l); }, true);
+document.addEventListener('focusin', e => { const l = e.target.closest('.lab'); if (l) setActive(l); });
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || !ACTIVE || !ACTIVE.offsetParent || !ACTIVE._key) return;
+  const tg = e.target, tag = tg && tg.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+  if (e.key === ' ' && tag === 'BUTTON') return;
+  if (ACTIVE._key(e)) e.preventDefault();
+});
+
+/* ===================== 逐步演示引擎 ===================== */
+function labTop(cfg) {
+  return '<div class="lab-top"><span class="lab-kind">动手 · ' + (cfg.kind || '逐步演示') + '</span><h3 class="lab-title">' + cfg.title + '</h3>' + (cfg.intro ? '<p class="lab-intro">' + cfg.intro + '</p>' : '') + '</div>';
+}
+function stepLab(root, cfg) {
+  root.classList.add('lab');
+  const seg = cfg.variants ? '<div class="seg" role="group" aria-label="' + cfg.variantLabel + '">' + cfg.variants.map(v => '<button type="button" data-v="' + v.key + '">' + v.label + '</button>').join('') + '</div>' : '<span></span>';
+  root.innerHTML = labTop(cfg) +
+    '<div class="narr" aria-live="polite"><div class="narr-k"></div><p class="narr-t"></p><p class="narr-p"></p></div>' +
+    '<div class="ctrl">' + seg + '<div class="btns"><button type="button" class="btn b-prev">← 上一步</button><button type="button" class="btn b-play">▶ 自动播放</button><button type="button" class="btn primary b-next">下一步 →</button><button type="button" class="btn ghost b-reset">从头开始</button></div></div>' +
+    '<ol class="dots"></ol>' +
+    '<div class="bench' + (cfg.stack ? ' stack' : '') + '">' + (cfg.code ? '<div class="code-col"></div>' : '') + '<div class="stage"></div></div>';
+  const q = s => $(s, root);
+  const codeCol = q('.code-col'), stage = q('.stage'), K = q('.narr-k'), T = q('.narr-t'), P = q('.narr-p'), dots = q('.dots');
+  const bPrev = q('.b-prev'), bNext = q('.b-next'), bPlay = q('.b-play');
+  const S = {v: cfg.variants ? cfg.variants[0].key : null, i: 0, timer: null};
+  let steps = cfg.steps(S.v);
+  function render() {
+    const st = steps[S.i];
+    if (codeCol) { codeCol.innerHTML = cfg.code(S.v).map(p => codePanel(p, st.hl)).join(''); scrollHl(codeCol); }
+    flip(stage, () => { stage.innerHTML = cfg.stage(st.s, st, S.v); });
+    K.textContent = '第 ' + (S.i + 1) + ' / ' + steps.length + ' 步';
+    T.textContent = st.t;
+    P.innerHTML = st.d;
+    dots.innerHTML = steps.map((s, i) => '<li><button type="button" data-i="' + i + '" class="' + (i === S.i ? 'on' : i < S.i ? 'past' : '') + '" aria-label="第 ' + (i + 1) + ' 步：' + esc(s.t) + '"' + (i === S.i ? ' aria-current="step"' : '') + '></button></li>').join('');
+    bPrev.disabled = S.i === 0;
+    bNext.disabled = S.i === steps.length - 1;
+    bPlay.textContent = S.timer ? '⏸ 暂停' : (S.i === steps.length - 1 ? '↻ 从头播放' : '▶ 自动播放');
+    $$('.seg button', root).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.v ? 'true' : 'false'));
+  }
+  const go = i => { S.i = Math.max(0, Math.min(steps.length - 1, i)); render(); };
+  const stop = () => { if (S.timer) { clearInterval(S.timer); S.timer = null; } };
+  function play() {
+    if (S.timer) { stop(); render(); return; }
+    if (S.i === steps.length - 1) S.i = 0;
+    S.timer = setInterval(() => { if (S.i >= steps.length - 1) { stop(); render(); return; } go(S.i + 1); }, 3600);
+    render();
+  }
+  bPrev.onclick = () => { stop(); go(S.i - 1); };
+  bNext.onclick = () => { stop(); go(S.i + 1); };
+  bPlay.onclick = play;
+  q('.b-reset').onclick = () => { stop(); go(0); };
+  dots.onclick = e => { const b = e.target.closest('button'); if (b) { stop(); go(+b.dataset.i); } };
+  $$('.seg button', root).forEach(b => { b.onclick = () => { stop(); S.v = b.dataset.v; steps = cfg.steps(S.v); S.i = Math.min(S.i, steps.length - 1); render(); }; });
+  root._key = e => {
+    if (e.key === 'ArrowRight') { stop(); go(S.i + 1); return true; }
+    if (e.key === 'ArrowLeft') { stop(); go(S.i - 1); return true; }
+    if (e.key === ' ') { play(); return true; }
+    return false;
+  };
+  STOPPERS.push(() => { if (S.timer) { stop(); render(); } });
+  render();
+}
+
+/* ===================== 1.5 对象布局 ===================== */
+const LAYOUTS = [
+  {k: 'obj', label: 'new Object()', code: ['Object o = new Object();'], size: 16, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'pad', '对齐填充']],
+    note: '没有任何字段：对象头 8 + 4 = 12 字节，再补 4 字节凑成 8 的倍数。'},
+  {k: 'point', label: 'Point', code: ['class Point {', '    int x;', '}'], size: 16, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'field', 'int x']],
+    note: 'int x 正好填进对象头后面的 4 字节，不需要填充。x 的偏移量 12 是用 Unsafe.objectFieldOffset 实测的（3.3 节）。'},
+  {k: 'arr', label: 'new int[3]', code: ['int[] a = new int[3];'], size: 32, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'len', '长度 = 3'], [16, 4, 'field', 'a[0]'], [20, 4, 'field', 'a[1]'], [24, 4, 'field', 'a[2]'], [28, 4, 'pad', '对齐填充']],
+    note: '数组的对象头多 4 字节存长度，所以元素从第 16 字节开始（实测 arrayBaseOffset = 16）。12 + 4 + 3 × 4 = 28，补齐到 32。'},
+  {k: 'mixed', label: 'Mixed', code: ['class Mixed {', '    boolean flag;', '    int x;', '    long y;', '    Object ref;', '}'], size: 32, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'field', 'int x'], [16, 8, 'field', 'long y'], [24, 1, 'field', 'flag'], [25, 3, 'pad', '空隙'], [28, 4, 'ref', 'Object ref']],
+    note: '字段在内存里的顺序和源码不一样。JVM 先用 int x 填满对象头后面的 4 字节；long y 要按 8 字节对齐，放在 16；boolean 放在 24；引用开启压缩指针后占 4 字节，放在 28，中间空出 3 字节。这些偏移量都是在 JDK 17 上用 Unsafe.objectFieldOffset 实测的。'}
+];
+const KC = {mark: 'k-mark', klass: 'k-klass', len: 'k-len', field: 'k-field', ref: 'k-ref', pad: 'k-pad'};
+function objLayout(root) {
+  root.classList.add('lab');
+  let cur = 0;
+  root.innerHTML = labTop({kind: '内存布局计算器', title: '一个对象到底占几个字节？', intro: '选一个对象，看它在堆里每个字节放的是什么。数字都是 64 位 JDK 17、默认开启压缩指针时实测的。'}) +
+    '<div class="ctrl"><div class="seg" role="group" aria-label="对象类型">' + LAYOUTS.map((L, i) => '<button type="button" data-i="' + i + '">' + esc(L.label) + '</button>').join('') + '</div></div>' +
+    '<div class="bench"><div class="code-col"></div><div class="stage"></div></div>';
+  const render = () => {
+    const L = LAYOUTS[cur];
+    $('.code-col', root).innerHTML = codePanel({id: 'c', title: '源码', lines: L.code}, []);
+    let rows = '';
+    for (let off = 0; off < L.size; off += 8) {
+      const cells = L.parts.filter(p => p[0] >= off && p[0] < off + 8).map(p => '<div class="bpart' + (p[2] === 'pad' ? ' pad' : '') + '" style="grid-column:span ' + p[1] + ';--kc:var(--' + KC[p[2]] + ')" title="' + esc(p[3]) + '，第 ' + p[0] + '~' + (p[0] + p[1] - 1) + ' 字节"><b>' + esc(p[3]) + '</b><span>' + p[1] + ' 字节</span></div>').join('');
+      rows += '<div class="brow"><span class="boff">+' + off + '</span><div class="bcells">' + cells + '</div></div>';
+    }
+    $('.stage', root).innerHTML = '<div class="box"><div class="box-h">每行 8 字节，左边是行首的偏移量</div><div class="bytemap">' + rows + '</div><div class="total"><span class="rk">总大小</span><b>' + L.size + ' 字节</b><span class="note">Instrumentation.getObjectSize 实测也是 ' + L.size + '</span></div></div><p class="narr-p" style="margin-top:10px">' + esc(L.note) + '</p>';
+    $$('.seg button', root).forEach((b, i) => b.setAttribute('aria-pressed', i === cur ? 'true' : 'false'));
+  };
+  $$('.seg button', root).forEach((b, i) => { b.onclick = () => { cur = i; render(); }; });
+  root._key = e => {
+    if (e.key === 'ArrowRight') { cur = Math.min(LAYOUTS.length - 1, cur + 1); render(); return true; }
+    if (e.key === 'ArrowLeft') { cur = Math.max(0, cur - 1); render(); return true; }
+    return false;
+  };
+  render();
+}
+
+/* ===================== 1.5 MonitorStateDemo 逐步执行 ===================== */
+const ADDR = '<0x0000000697c1c210>';
+const MD_CODE = [
+  {id: 'waiter', title: '线程 waiter', lines: ['synchronized (lock) {', '    lock.wait();', '    System.out.println("waiter 被唤醒…");', '}']},
+  {id: 'owner', title: '线程 owner', lines: ['synchronized (lock) {', '    sleep(3000);', '    lock.notify();', '    sleep(3000);', '}']},
+  {id: 'blocked', title: '线程 blocked', lines: ['synchronized (lock) { }']}
+];
+function mdStage(s, st) {
+  return '<div class="stack-v"><div class="box"><div class="box-h">对象 lock 的 ObjectMonitor</div>' + zones(s.mon) + '</div>' +
+    '<div class="box"><div class="box-h">三个线程此刻的状态</div>' + thrTable(['waiter', 'owner', 'blocked'], s.th, st) + '</div>' +
+    (s.out ? '<div class="box"><div class="box-h">对应程序输出</div><code style="font-size:12.5px">' + esc(s.out) + '</code></div>' : '') + '</div>';
+}
+function mdSteps() {
+  const L = '- locked ' + ADDR, WTL = '- waiting to lock ' + ADDR, WON = '- waiting on ' + ADDR, RL = '- waiting to re-lock in wait() ' + ADDR;
+  const N = TS('NEW', '', '还没执行到这里');
+  return [
+    {t: 'waiter 先拿到锁', d: 'waiter 进入同步块，成为 Owner。为了看清结构，这里直接画出了 ObjectMonitor；单元三会讲到，没有竞争时其实先用轻量级锁，调用 wait 的那一刻才会膨胀出 monitor。', hl: [{p: 'waiter', i: 0, t: 'waiter'}], chg: ['thwaiter'],
+      s: {mon: {owner: 'waiter', entry: [], wait: []}, th: {waiter: TS('RUNNABLE', L, '持有锁'), owner: N, blocked: N}}},
+    {t: 'waiter 调用 wait()：让出锁，进 WaitSet', d: 'waiter 把锁让出来，自己进入 <b>WaitSet</b>，状态变成 WAITING。Owner 空了。', hl: [{p: 'waiter', i: 1, t: 'waiter'}], chg: ['thwaiter'],
+      s: {mon: {owner: null, entry: [], wait: ['waiter']}, th: {waiter: TS('WAITING', WON, '在 WaitSet 等通知'), owner: N, blocked: N}}},
+    {t: 'owner 拿到锁，拿着锁睡觉', d: 'owner 成为 Owner 后调用 sleep(3000)。它的状态是 TIMED_WAITING，却仍然占着 Owner 的位置：<b>sleep 不释放锁</b>。', hl: [{p: 'owner', i: 0, t: 'owner'}, {p: 'owner', i: 1, t: 'owner'}], chg: ['thowner'],
+      s: {mon: {owner: 'owner', entry: [], wait: ['waiter']}, th: {waiter: TS('WAITING', WON, '在 WaitSet 等通知'), owner: TS('TIMED_WAITING', L, '在 sleep，但仍持有锁'), blocked: N}}},
+    {t: 'blocked 来抢锁：进 EntryList', d: 'blocked 抢不到锁，进入 <b>EntryList</b>，状态 BLOCKED。这一刻正是程序输出的“阶段一”。', hl: [{p: 'blocked', i: 0, t: 'blocked'}], chg: ['thblocked'],
+      s: {mon: {owner: 'owner', entry: ['blocked'], wait: ['waiter']}, out: '阶段一  owner=TIMED_WAITING  blocked=BLOCKED  waiter=WAITING', th: {waiter: TS('WAITING', WON, '在 WaitSet 等通知'), owner: TS('TIMED_WAITING', L, '在 sleep，但仍持有锁'), blocked: TS('BLOCKED', WTL, '在 EntryList 等锁')}}},
+    {t: 'owner 调用 notify()：waiter 被挪回 EntryList', d: 'notify 只是把 waiter 从 WaitSet 挪到 EntryList，<b>并没有把锁交给它</b>。waiter 从 WAITING 变成 BLOCKED，这就是“阶段二”。owner 接着又睡 3 秒，锁还在它手里。', hl: [{p: 'owner', i: 2, t: 'owner'}, {p: 'owner', i: 3, t: 'owner'}], chg: ['thwaiter'],
+      s: {mon: {owner: 'owner', entry: ['blocked', 'waiter'], wait: []}, out: '阶段二  owner=TIMED_WAITING  blocked=BLOCKED  waiter=BLOCKED', th: {waiter: TS('BLOCKED', RL, '回到 EntryList 重新排队'), owner: TS('TIMED_WAITING', L, '在 sleep，但仍持有锁'), blocked: TS('BLOCKED', WTL, '在 EntryList 等锁')}}},
+    {t: 'owner 退出同步块：锁空出来', d: 'owner 释放锁，并从 EntryList 叫醒一个线程。叫醒谁、谁先抢到，JVM 都不做保证。', hl: [{p: 'owner', i: 4, t: 'owner'}], chg: ['thowner'],
+      s: {mon: {owner: null, entry: ['blocked', 'waiter'], wait: []}, th: {waiter: TS('BLOCKED', RL, '正在抢锁'), owner: TS('TERMINATED', '', '线程结束'), blocked: TS('BLOCKED', WTL, '正在抢锁')}}},
+    {t: 'blocked 先抢到了锁', d: '这次是 blocked 先抢到（再运行一次也可能是 waiter）。它的同步块是空的，马上就退出了。', hl: [{p: 'blocked', i: 0, t: 'blocked'}], chg: ['thblocked'],
+      s: {mon: {owner: 'blocked', entry: ['waiter'], wait: []}, th: {waiter: TS('BLOCKED', RL, '还在等锁'), owner: TS('TERMINATED', '', '线程结束'), blocked: TS('RUNNABLE', L, '持有锁')}}},
+    {t: 'waiter 重新拿到锁，从 wait() 返回', d: 'waiter 抢到锁，从 wait() 的下一行继续，打印出程序输出的最后一行。', hl: [{p: 'waiter', i: 2, t: 'waiter'}], chg: ['thwaiter'],
+      s: {mon: {owner: 'waiter', entry: [], wait: []}, out: 'waiter 被唤醒并重新拿到了锁', th: {waiter: TS('RUNNABLE', L, '持有锁'), owner: TS('TERMINATED', '', '线程结束'), blocked: TS('TERMINATED', '', '线程结束')}}}
+  ];
+}
+
+/* ===================== 1.6 线程状态机 ===================== */
+const SMN = {NEW: [115, 54, 150], RUNNABLE: [380, 54, 150], TERMINATED: [645, 54, 150], BLOCKED: [140, 236, 150], WAITING: [380, 236, 150], TIMED_WAITING: [620, 236, 170]};
+const SME = {
+  NR: 'M190 54 H305', RX: 'M455 54 H570',
+  RB: 'M330 78 L170 212', BR: 'M195 212 L350 78',
+  RW: 'M370 78 V212', WR: 'M390 212 V78',
+  RT: 'M410 78 L585 212', TR: 'M610 212 L432 78',
+  WB: 'M305 244 H215', TB: 'M620 260 C620 292 140 292 140 260'
+};
+const SM_JS = {NEW: '（还没有对应的系统线程）', RUNNABLE: 'java.lang.Thread.State: RUNNABLE', BLOCKED: 'BLOCKED (on object monitor)', TERMINATED: '（线程已结束，jstack 里看不到它）'};
+function smJs(st, via) {
+  if (st === 'WAITING') return via === 'park' ? 'WAITING (parking)' : 'WAITING (on object monitor)';
+  if (st === 'TIMED_WAITING') return via === 'sleep' ? 'TIMED_WAITING (sleeping)' : 'TIMED_WAITING (on object monitor)';
+  return SM_JS[st];
+}
+function smActions(st, via) {
+  switch (st) {
+    case 'NEW': return [['t.start()', 'RUNNABLE', null, 'NR', 'start() 让 JVM 创建一个内核线程，线程进入 RUNNABLE。RUNNABLE 同时包含操作系统里的“就绪”和“运行中”，Java 不区分这两者。']];
+    case 'RUNNABLE': return [
+      ['进入 synchronized，锁被别人占着', 'BLOCKED', null, 'RB', '抢 monitor 失败，进入 EntryList。<b>BLOCKED 只在等 synchronized 的锁时出现。</b>'],
+      ['lock.wait()', 'WAITING', 'wait', 'RW', '释放锁，进入对象的 WaitSet，等别人 notify。'],
+      ['LockSupport.park()（比如等 ReentrantLock）', 'WAITING', 'park', 'RW', '被 park 挂起。等 ReentrantLock 的线程就是这个状态，jstack 显示 WAITING (parking)，<b>不是 BLOCKED</b>。'],
+      ['other.join()', 'WAITING', 'join', 'RW', '等另一个线程结束。join 的底层是 while (isAlive()) wait(0)，所以它也是在一个对象的 monitor 上等待。'],
+      ['Thread.sleep(100)', 'TIMED_WAITING', 'sleep', 'RT', '带超时地睡眠。注意：如果手里拿着锁，sleep 不会释放它。'],
+      ['lock.wait(100)', 'TIMED_WAITING', 'waitn', 'RT', '带超时的 wait：释放锁，进 WaitSet，最多等 100 毫秒。'],
+      ['run() 执行完', 'TERMINATED', null, 'RX', 'run 正常结束或抛出了没被捕获的异常，线程终止。']];
+    case 'BLOCKED': return [['持锁线程释放了锁，抢到了', 'RUNNABLE', null, 'BR', '拿到 monitor，成为 Owner，回到 RUNNABLE。']];
+    case 'WAITING':
+      if (via === 'park') return [['别的线程 unpark(它)', 'RUNNABLE', null, 'WR', '拿到许可证，从 park 返回。'], ['被 interrupt()', 'RUNNABLE', null, 'WR', 'park 被中断时直接返回，不抛异常，也不清除中断标志。']];
+      if (via === 'join') return [['被等待的线程结束了', 'RUNNABLE', null, 'WR', '线程结束时 JVM 会对它调用 notifyAll，join 随之返回。']];
+      return [['别的线程 notify()', 'BLOCKED', 'relock', 'WB', '从 WaitSet 挪到 EntryList。它要<b>重新抢锁</b>，所以先变成 BLOCKED，不是直接 RUNNABLE。'], ['被 interrupt()', 'BLOCKED', 'relock', 'WB', '被中断也要先重新拿到锁，拿到后再从 wait() 抛出 InterruptedException。']];
+    case 'TIMED_WAITING':
+      if (via === 'sleep') return [['100 毫秒到了', 'RUNNABLE', null, 'TR', '睡够了，自动回到 RUNNABLE。'], ['被 interrupt()', 'RUNNABLE', null, 'TR', '从 sleep 中醒来，清除中断标志，并抛出 InterruptedException。']];
+      return [['超时了', 'BLOCKED', 'relock', 'TB', '超时后同样要先重新抢锁，所以变成 BLOCKED。'], ['别的线程 notify()', 'BLOCKED', 'relock', 'TB', '被挪回 EntryList，变成 BLOCKED，等着重新抢锁。']];
+    case 'TERMINATED': return [['再调用一次 t.start()', 'TERMINATED', null, null, '抛出 IllegalThreadStateException：一个线程对象只能 start 一次，状态不会变。'], ['new 一个新线程重来', 'NEW', null, null, '重新开始。']];
+  }
+  return [];
+}
+function stateMachine(root) {
+  root.classList.add('lab');
+  const S = {st: 'NEW', via: null, edge: null, msg: '线程对象刚 new 出来，还没调用 start()。点下面的操作，看它怎么在 6 种状态之间转换。', hist: ['NEW']};
+  root.innerHTML = labTop({kind: '可以点的状态机', title: '线程的 6 种状态是怎么转换的', intro: '每次只能点当前状态下真实存在的操作。留意两个容易错的地方：被 notify 的线程先变成 BLOCKED；等 ReentrantLock 的线程是 WAITING。'}) +
+    '<div class="sm-wrap"></div><div class="narr"><div class="narr-k"></div><p class="narr-t"></p><p class="narr-p"></p></div><div class="sm-acts"></div><div class="sm-hist"></div>';
+  const svgEl = () => {
+    const nodes = Object.entries(SMN).map(([k, [cx, cy, w]]) => '<g class="sm-node' + (k === S.st ? ' cur' : '') + '"><rect x="' + (cx - w / 2) + '" y="' + (cy - 24) + '" width="' + w + '" height="48" rx="10"/><text x="' + cx + '" y="' + (cy + 5) + '" text-anchor="middle">' + k + '</text></g>').join('');
+    const edges = Object.entries(SME).map(([k, d]) => '<path class="sm-edge' + (k === S.edge ? ' on' : '') + '" d="' + d + '" marker-end="url(#' + (k === S.edge ? 'sm-a-on' : 'sm-a') + ')"/>').join('');
+    return '<svg class="sm-svg" viewBox="0 0 760 316" role="img" aria-label="线程状态转换图，当前状态 ' + S.st + '"><defs><marker id="sm-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="sm-arrow" d="M0 0L10 5L0 10z"/></marker><marker id="sm-a-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="sm-arrow-on" d="M0 0L10 5L0 10z"/></marker></defs>' + edges + nodes +
+      '<text class="sm-lbl" x="247" y="44" text-anchor="middle">start()</text><text class="sm-lbl" x="512" y="44" text-anchor="middle">run 结束</text><text class="sm-lbl" x="260" y="236" text-anchor="middle">notify</text><text class="sm-lbl" x="380" y="306" text-anchor="middle">wait(n) 超时 / notify</text></svg>';
+  };
+  const render = () => {
+    $('.sm-wrap', root).innerHTML = svgEl();
+    $('.narr-k', root).textContent = '当前状态';
+    $('.narr-t', root).innerHTML = pill(S.st) + ' <code style="font-size:12.5px;color:var(--ink-3)">' + esc(smJs(S.st, S.via)) + '</code>';
+    $('.narr-p', root).innerHTML = S.msg;
+    $('.sm-acts', root).innerHTML = smActions(S.st, S.via).map((a, i) => '<button type="button" class="btn' + (i === 0 ? ' primary' : '') + '" data-i="' + i + '">' + esc(a[0]) + '</button>').join('');
+    $('.sm-hist', root).textContent = '走过的路径：' + S.hist.join(' → ');
+  };
+  root.addEventListener('click', e => {
+    const b = e.target.closest('.sm-acts button');
+    if (!b) return;
+    const a = smActions(S.st, S.via)[+b.dataset.i];
+    if (a[1] === 'NEW') { S.st = 'NEW'; S.via = null; S.edge = null; S.msg = a[4]; S.hist = ['NEW']; render(); return; }
+    const was = S.st;
+    S.st = a[1]; S.via = a[2] || (a[1] === 'WAITING' || a[1] === 'TIMED_WAITING' ? S.via : null); S.edge = a[3]; S.msg = a[4];
+    if (was !== S.st) S.hist.push(S.st); else S.hist.push('(' + S.st + ')');
+    if (S.hist.length > 9) S.hist = ['…'].concat(S.hist.slice(-8));
+    render();
+  });
+  render();
+}
+
+/* ===================== 1.8 notify vs notifyAll ===================== */
+const NT_CODE = v => [{id: 'X', title: 'A、B、C 三个线程都执行这段代码（myTurn 分别是 0、1、2）', lines: [
+  'synchronized (lock) {',
+  '    while (state != myTurn) {',
+  '        lock.wait();',
+  '    }',
+  '    print(myName);',
+  '    state = (state + 1) % 3;',
+  v === 'one' ? '    lock.notify();       // 只叫醒一个' : '    lock.notifyAll();    // 叫醒全部',
+  '}']}];
+function ntStage(s, st) {
+  return '<div class="stack-v"><div class="grid2"><div class="box kv' + chg(st, 'state') + '"><span class="rk">state（该谁打印）</span><b class="big">' + s.state + '</b><span class="note">' + ['轮到 A', '轮到 B', '轮到 C'][s.state] + '</span></div>' +
+    '<div class="box kv' + chg(st, 'out') + '"><span class="rk">已经打印</span><b class="big" style="font-size:22px">' + (s.out || '—') + '</b></div></div>' +
+    '<div class="box"><div class="box-h">对象 lock 的 monitor</div>' + zones(s.mon) + '</div>' + (s.v ? '<div class="verdict ' + s.v[0] + '">' + s.v[1] + '</div>' : '') + '</div>';
+}
+function ntSteps(v) {
+  const X = 'X';
+  const head = [
+    {t: '起点：轮到 A，B 和 C 在 WaitSet 里等', d: 'state = 0，只有 A 的条件成立。B 和 C 先来过，发现没轮到自己，都 wait 进了 WaitSet。现在 A 是 Owner。', hl: [{p: X, i: 1, t: 'A'}],
+      s: {state: 0, out: '', mon: {owner: 'A', entry: [], wait: ['B', 'C']}}},
+    {t: 'A 打印 A，把 state 改成 1', d: '现在该轮到 B 了。A 要通知等待的人。', hl: [{p: X, i: 4, t: 'A'}, {p: X, i: 5, t: 'A'}], chg: ['state', 'out'],
+      s: {state: 1, out: 'A', mon: {owner: 'A', entry: [], wait: ['B', 'C']}}}
+  ];
+  if (v === 'one') return head.concat([
+    {t: 'A 调用 notify()：JVM 挑中了 C', d: 'notify 只叫醒一个线程，叫醒哪个由 JVM 决定。这次挑中了 C，可现在该轮到的是 B。', hl: [{p: X, i: 6, t: 'A'}],
+      s: {state: 1, out: 'A', mon: {owner: 'A', entry: ['C'], wait: ['B']}}},
+    {t: 'A 退出，C 抢到锁', d: 'A 释放锁，EntryList 里只有 C，C 成为 Owner，回到 while 检查条件。', hl: [{p: X, i: 7, t: 'A'}, {p: X, i: 1, t: 'C'}],
+      s: {state: 1, out: 'A', mon: {owner: 'C', entry: [], wait: ['B']}}},
+    {t: 'C 发现没轮到自己，又睡回去', d: 'state = 1 不等于 C 的 2，C 再次 wait。它没有调用 notify，因为它根本没走到那一行。', hl: [{p: X, i: 2, t: 'C'}],
+      s: {state: 1, out: 'A', mon: {owner: null, entry: [], wait: ['B', 'C']}}},
+    {t: 'A 下一轮回来，也没轮到它：全员卡死', d: 'A 的循环进入下一轮，state = 1 不等于 0，A 也 wait 了。三个线程全在 WaitSet 里，没有任何线程会再调用 notify。<b>B 明明该打印了，却永远等不到通知。</b>', hl: [{p: X, i: 2, t: 'A'}],
+      s: {state: 1, out: 'A', mon: {owner: null, entry: [], wait: ['B', 'C', 'A']}, v: ['bad', '程序卡死：jstack 里三个线程都是 WAITING (on object monitor)，等在同一个对象上。线程数 ≥ 3 时用 notify，就可能叫醒“错的人”。']}}
+  ]);
+  return head.concat([
+    {t: 'A 调用 notifyAll()：B 和 C 全被挪到 EntryList', d: 'notifyAll 把 WaitSet 里的线程全部挪到 EntryList，让它们自己去抢锁、自己检查条件。', hl: [{p: X, i: 6, t: 'A'}],
+      s: {state: 1, out: 'A', mon: {owner: 'A', entry: ['B', 'C'], wait: []}}},
+    {t: 'A 退出，C 先抢到锁', d: '谁先抢到不确定，这次是 C。', hl: [{p: X, i: 7, t: 'A'}, {p: X, i: 1, t: 'C'}],
+      s: {state: 1, out: 'A', mon: {owner: 'C', entry: ['B'], wait: []}}},
+    {t: 'C 没轮到自己，又睡回去', d: 'state = 1 不等于 2，C 再次 wait，把锁让出来。这就是 while 的作用：醒来后必须重新检查条件。', hl: [{p: X, i: 2, t: 'C'}],
+      s: {state: 1, out: 'A', mon: {owner: null, entry: ['B'], wait: ['C']}}},
+    {t: 'B 抢到锁：这次轮到它了', d: 'state = 1 正好等于 B 的 myTurn，跳出 while。', hl: [{p: X, i: 1, t: 'B'}, {p: X, i: 4, t: 'B'}],
+      s: {state: 1, out: 'A', mon: {owner: 'B', entry: [], wait: ['C']}}},
+    {t: 'B 打印 B，再 notifyAll', d: 'state 变成 2，C 被挪回 EntryList，接下来就轮到它。程序会一直这样转下去。', hl: [{p: X, i: 5, t: 'B'}, {p: X, i: 6, t: 'B'}], chg: ['state', 'out'],
+      s: {state: 2, out: 'A B', mon: {owner: 'B', entry: ['C'], wait: []}, v: ['ok', '不会卡死。代价是每次都把所有人叫醒，没轮到的线程白醒一次又睡回去。想只叫醒下一个线程，要用 ReentrantLock 的多个 Condition（单元六、11.1 节写法二）。']}}
+  ]);
+}
+
+/* ===================== 1.9 中断标志 ===================== */
+const IT_CODE = v => [
+  {id: 't', title: '线程 t', lines: [
+    'while (!Thread.currentThread().isInterrupted()) {',
+    '    try {',
+    '        doWork();',
+    '        Thread.sleep(100);',
+    '    } catch (InterruptedException e) {',
+    v === 'keep' ? '        Thread.currentThread().interrupt();  // 恢复标志' : '        // 什么都没做',
+    '    }',
+    '}']},
+  {id: 'main', title: 'main 线程', lines: ['t.start();', 't.interrupt();   // 请求 t 停下']}
+];
+function itStage(s, st) {
+  return '<div class="stack-v"><div class="grid2"><div class="box kv"><span class="rk">线程 t 的状态</span><span>' + pill(s.st) + '</span><span class="note">' + s.where + '</span></div>' +
+    '<div class="box kv' + chg(st, 'flag') + '"><span class="rk">t 的中断标志位</span><b class="big">' + s.flag + '</b><span class="note">' + (s.flag ? '已被请求中断' : '没有中断请求') + '</span></div></div>' +
+    '<div class="box"><span class="rk">while 条件</span> <code>!isInterrupted()</code> → <code>' + (s.cond == null ? '—' : s.cond ? 'true，继续循环' : 'false，退出循环') + '</code></div>' + (s.v ? '<div class="verdict ' + s.v[0] + '">' + s.v[1] + '</div>' : '') + '</div>';
+}
+function itSteps(v) {
+  const base = [
+    {t: 't 正在循环里干活，sleep 中', d: '中断标志是 0，while 条件成立。t 执行完 doWork() 后进入 sleep(100)，状态 TIMED_WAITING。', hl: [{p: 't', i: 0, t: 't'}, {p: 't', i: 3, t: 't'}],
+      s: {st: 'TIMED_WAITING', where: '阻塞在 sleep(100)', flag: 0, cond: true}},
+    {t: 'main 调用 t.interrupt()', d: 'interrupt 只做两件事：把 t 的中断标志置为 1；如果 t 正阻塞在 sleep、wait、join 上，就把它叫醒。它<b>不会强行停止线程</b>，是否停下由 t 自己决定。', hl: [{p: 'main', i: 1, t: 'main'}], chg: ['flag'],
+      s: {st: 'TIMED_WAITING', where: '被叫醒中', flag: 1, cond: null}},
+    {t: 'sleep 抛出异常，同时把标志清零', d: 't 在 sleep 内部醒来，发现中断标志是 1：<b>先把标志清成 0</b>，再抛出 InterruptedException，跳进 catch。', hl: [{p: 't', i: 3, t: 't'}, {p: 't', i: 4, t: 't'}], chg: ['flag'],
+      s: {st: 'RUNNABLE', where: '进入 catch', flag: 0, cond: null}}
+  ];
+  if (v === 'keep') return base.concat([
+    {t: 'catch 里恢复中断标志', d: '再调一次 interrupt()，把标志重新置为 1，把“有人要我停下”这件事传回给循环条件。', hl: [{p: 't', i: 5, t: 't'}], chg: ['flag'],
+      s: {st: 'RUNNABLE', where: '在 catch 里', flag: 1, cond: null}},
+    {t: 'while 读到中断，循环结束', d: 'isInterrupted() 返回 true，循环条件为 false，线程正常退出。', hl: [{p: 't', i: 0, t: 't'}],
+      s: {st: 'TERMINATED', where: '线程结束', flag: 1, cond: false, v: ['ok', '线程按请求停下了。这就是 1.9 节推荐写法的意义。']}}
+  ]);
+  return base.concat([
+    {t: 'catch 里什么都没做', d: '标志刚被 sleep 清成 0，catch 又没有恢复它。', hl: [{p: 't', i: 5, t: 't'}],
+      s: {st: 'RUNNABLE', where: '在 catch 里', flag: 0, cond: null}},
+    {t: 'while 读到 0，继续循环', d: 'isInterrupted() 返回 false，t 又进入下一轮 doWork() 和 sleep。', hl: [{p: 't', i: 0, t: 't'}, {p: 't', i: 3, t: 't'}],
+      s: {st: 'TIMED_WAITING', where: '又在 sleep 了', flag: 0, cond: true, v: ['bad', '中断请求被吞掉了：main 以为已经通知 t 停下，t 却完全不知道，会一直循环下去。']}}
+  ]);
+}
+
+/* ===================== 2.1 count++ 竞态（你来当调度器） ===================== */
+const PROG = {
+  plain: [{op: 'getfield count', k: 'read', h: '读'}, {op: 'iconst_1 + iadd', k: 'add', h: '加'}, {op: 'putfield count', k: 'write', h: '写回'}],
+  sync: [{op: 'monitorenter', k: 'enter', h: '加锁'}, {op: 'getfield count', k: 'read', h: '读'}, {op: 'iconst_1 + iadd', k: 'add', h: '加'}, {op: 'putfield count', k: 'write', h: '写回'}, {op: 'monitorexit', k: 'exit', h: '解锁'}]
+};
+const RACE_SRC = {
+  plain: {id: 'J', title: 'Counter.java · 两个线程各调一次 inc()', lines: ['class Counter {', '    int count = 0;', '    void inc() {', '        count++;', '    }', '}']},
+  sync: {id: 'J', title: 'Counter.java · 两个线程各调一次 inc()', lines: ['class Counter {', '    int count = 0;', '    void inc() {', '        synchronized (this) {', '            count++;', '        }', '    }', '}']}
+};
+function raceLab(root) {
+  root.classList.add('lab');
+  root.innerHTML = labTop({kind: '你来当调度器', title: 'count++ 为什么会丢', intro: '两个线程各执行一次 count++，正确结果是 2。点哪个线程，哪个线程就执行一条字节码。试试先让两个线程都“读”一次，再各自写回。'}) +
+    '<div class="narr" aria-live="polite"><div class="narr-k">刚刚发生了什么</div><p class="narr-t"></p><p class="narr-p"></p></div>' +
+    '<div class="ctrl"><div class="seg" role="group" aria-label="代码版本"><button type="button" data-v="plain">普通 count++</button><button type="button" data-v="sync">加 synchronized</button></div>' +
+    '<div class="btns"><button type="button" class="btn primary r-lost">演示：交错执行</button><button type="button" class="btn r-serial">演示：先后执行</button><button type="button" class="btn ghost r-reset">重来</button></div></div>' +
+    '<div class="bench"><div class="code-col"><div class="r-src"></div><div class="box"><div class="box-h">执行记录（最新在上）</div><ol class="log r-log"></ol></div></div><div class="stage"></div></div>';
+  const stage = $('.stage', root), src = $('.r-src', root), logEl = $('.r-log', root), T = $('.narr-t', root), P = $('.narr-p', root);
+  let R, auto = null;
+  const stopAuto = () => { if (auto) { clearInterval(auto); auto = null; } };
+  function reset(mode) {
+    stopAuto();
+    R = {mode: mode || (R && R.mode) || 'plain', count: 0, owner: null, th: {T1: {pc: 0, stack: null, blocked: false}, T2: {pc: 0, stack: null, blocked: false}}, log: [], n: 0,
+      lastT: '还没有线程执行', lastD: '点右边线程卡片上的“执行下一条”，或者先看一遍演示。'};
+    render();
+  }
+  const push = text => { R.n++; R.log.unshift({n: R.n, text}); };
+  function step(t) {
+    const me = R.th[t], prog = PROG[R.mode], other = t === 'T1' ? 'T2' : 'T1';
+    if (me.pc >= prog.length) return;
+    const ins = prog[me.pc];
+    let d;
+    if (ins.k === 'enter' && R.owner && R.owner !== t) {
+      d = me.blocked ? t + ' 还在等锁，点它不会有任何进展。' : '锁正被 ' + R.owner + ' 持有，' + t + ' 进入 EntryList，状态变成 BLOCKED。' + R.owner + ' 释放锁之前，' + t + ' 一条指令也执行不了。';
+      me.blocked = true;
+      R.lastT = t + ' 执行 monitorenter：拿不到锁'; R.lastD = d; push(R.lastT); render(); return;
+    }
+    switch (ins.k) {
+      case 'enter': R.owner = t; me.blocked = false; d = t + ' 拿到了锁。接下来的读、加、写三步，别的线程都插不进来。'; break;
+      case 'read': me.stack = R.count; d = t + ' 从内存读到 count = ' + R.count + '，放进自己的操作数栈。'; break;
+      case 'add': me.stack += 1; d = t + ' 在自己的栈上算出 ' + me.stack + '。注意：内存里的 count 还是 ' + R.count + '。'; break;
+      case 'write': {
+        const old = R.count; R.count = me.stack;
+        d = old === me.stack ? t + ' 把 ' + me.stack + ' 写回内存，可内存里本来就是 ' + old + '。' + other + ' 的那次 +1 被覆盖了。' : t + ' 把 ' + me.stack + ' 写回内存，count 从 ' + old + ' 变成 ' + me.stack + '。';
+        break;
+      }
+      case 'exit': R.owner = null; d = t + ' 释放了锁。'; if (R.th[other].blocked) { R.th[other].blocked = false; d += other + ' 被唤醒，可以继续执行了。'; } break;
+    }
+    me.pc++;
+    R.lastT = t + ' 执行 ' + ins.op; R.lastD = d; push(R.lastT + '：' + d);
+    render();
+  }
+  function tcol(t) {
+    const me = R.th[t], prog = PROG[R.mode], done = me.pc >= prog.length;
+    const st = done ? 'TERMINATED' : me.blocked ? 'BLOCKED' : 'RUNNABLE';
+    return '<div class="box stack-v"><div class="lane-h">' + th(t) + pill(st) + '<button type="button" class="btn sm' + (done || me.blocked ? '' : ' primary') + ' r-run" data-t="' + t + '" style="margin-left:auto"' + (done ? ' disabled' : '') + '>' + (done ? '已执行完' : me.blocked ? '等锁中' : '执行下一条') + '</button></div>' +
+      '<ol class="bc">' + prog.map((ins, i) => '<li class="' + (i < me.pc ? 'done' : '') + (i === me.pc ? ' cur' : '') + '"><span class="pc">' + (i === me.pc ? '▶' : '') + '</span><code>' + ins.op + '</code><span class="hint2">' + ins.h + '</span></li>').join('') + '</ol>' +
+      '<div class="opstack"><span class="rk">' + t + ' 的操作数栈</span><code>' + (me.stack === null ? '空' : '[ ' + me.stack + ' ]') + '</code></div></div>';
+  }
+  function render() {
+    $$('.seg button', root).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === R.mode ? 'true' : 'false'));
+    src.innerHTML = codePanel(RACE_SRC[R.mode], [{p: 'J', f: 'count++', t: 'T1'}]).replace('>T1<', '>T1 · T2<');
+    T.textContent = R.lastT; P.textContent = R.lastD;
+    const prog = PROG[R.mode], fin = R.th.T1.pc >= prog.length && R.th.T2.pc >= prog.length;
+    let verdict = '';
+    if (fin) verdict = R.count === 2 ? '<div class="verdict ok">两次 count++，结果 count = 2，正确。' + (R.mode === 'sync' ? '锁让“读、加、写”变成了一个整体，另一个线程只能等在外面。' : '这次两个线程恰好没有交错，但跑对一次不代表代码正确。') + '</div>'
+      : '<div class="verdict bad">两次 count++，结果却是 <b>count = ' + R.count + '</b>。后写回的线程用的是它更早读到的旧值，把另一个线程的 +1 覆盖了。这就是 2.0 节卖票程序余票对不上的原因。</div>';
+    flip(stage, () => {
+      stage.innerHTML = '<div class="stack-v"><div class="box lane-h"><span class="rk">内存里的共享变量</span><b class="big">count = ' + R.count + '</b>' + (R.mode === 'sync' ? '<span style="margin-left:auto" class="lane-h"><span class="rk">this 的锁</span>' + (R.owner ? th(R.owner) : pill('NEW').replace('NEW', '空闲')) + '</span>' : '') + '</div>' +
+        '<div class="grid2">' + tcol('T1') + tcol('T2') + '</div>' + verdict + '</div>';
+    });
+    logEl.innerHTML = R.log.length ? R.log.slice(0, 14).map(x => '<li><span class="tm">' + x.n + '</span><span>' + esc(x.text) + '</span></li>').join('') : '<li><span class="tm">—</span><span class="none">还没有执行任何指令</span></li>';
+  }
+  stage.addEventListener('click', e => { const b = e.target.closest('.r-run'); if (b && !auto) step(b.dataset.t); });
+  $$('.seg button', root).forEach(b => { b.onclick = () => reset(b.dataset.v); });
+  const runSeq = seq => { reset(R.mode); let i = 0; auto = setInterval(() => { if (i >= seq.length) { stopAuto(); render(); return; } step(seq[i++]); }, RM ? 400 : 1300); };
+  $('.r-lost', root).onclick = () => runSeq(R.mode === 'plain' ? ['T1', 'T2', 'T1', 'T2', 'T1', 'T2'] : ['T1', 'T2', 'T1', 'T1', 'T1', 'T1', 'T2', 'T2', 'T2', 'T2', 'T2']);
+  $('.r-serial', root).onclick = () => runSeq(R.mode === 'plain' ? ['T1', 'T1', 'T1', 'T2', 'T2', 'T2'] : ['T1', 'T1', 'T1', 'T1', 'T1', 'T2', 'T2', 'T2', 'T2', 'T2']);
+  $('.r-reset', root).onclick = () => reset(R.mode);
+  STOPPERS.push(stopAuto);
+  reset('plain');
+}
+
+/* ===================== 2.1 最小结果是 2 ===================== */
+function m2Stage(s, st) {
+  const lane = (t, x) => '<div class="box lane"><div class="lane-h">' + th(t) + '<span class="note">' + x.what + '</span><span class="reg" style="margin-left:auto">寄存器：' + (x.reg == null ? '—' : x.reg) + '</span></div><div class="bar"><i style="width:' + (x.done * 2) + '%"></i></div><span class="note">已完成 ' + x.done + ' / 50 次</span></div>';
+  return '<div class="stack-v"><div class="box lane-h' + chg(st, 'x') + '"><span class="rk">内存里的 x</span><b class="big">' + s.x + '</b></div>' + lane('A', s.A) + lane('B', s.B) + (s.v ? '<div class="verdict bad">' + s.v + '</div>' : '') + '</div>';
+}
+const M2_STEPS = [
+  {t: 'A 读到 x = 0，然后被切走', d: 'A 把 0 读进寄存器，还没来得及加和写回，时间片就用完了。', chg: ['x'], hl: [{p: 'X', i: 1, t: 'A'}],
+    s: {x: 0, A: {reg: 0, done: 0, what: '读完就被切走'}, B: {reg: null, done: 0, what: '还没开始'}}},
+  {t: 'B 一口气执行完 49 次', d: 'A 不在 CPU 上，B 独占时间片，完整地执行了 49 次 x++，x = 49。', chg: ['x'], hl: [{p: 'X', i: 1, t: 'B'}],
+    s: {x: 49, A: {reg: 0, done: 0, what: '仍然挂起，寄存器里是旧值 0'}, B: {reg: null, done: 49, what: '完成 49 次'}}},
+  {t: 'A 回来，把 0 + 1 写回', d: 'A 继续它被打断的那一次：用寄存器里的 0 算出 1，写回内存。<b>B 的 49 次全部被覆盖</b>，x 变成 1。', chg: ['x'], hl: [{p: 'X', i: 1, t: 'A'}],
+    s: {x: 1, A: {reg: 1, done: 1, what: '完成 1 次'}, B: {reg: null, done: 49, what: '完成 49 次'}}},
+  {t: 'B 第 50 次读到 x = 1，然后被切走', d: 'B 开始最后一次，把 1 读进寄存器，又被切走了。', hl: [{p: 'X', i: 1, t: 'B'}],
+    s: {x: 1, A: {reg: null, done: 1, what: '完成 1 次'}, B: {reg: 1, done: 49, what: '读完就被切走'}}},
+  {t: 'A 执行完剩下的 49 次', d: 'A 独占 CPU，从 1 一路加到 50。', chg: ['x'], hl: [{p: 'X', i: 1, t: 'A'}],
+    s: {x: 50, A: {reg: null, done: 50, what: '全部完成'}, B: {reg: 1, done: 49, what: '仍然挂起，寄存器里是旧值 1'}}},
+  {t: 'B 回来，写回 1 + 1 = 2', d: 'B 用寄存器里的 1 算出 2，写回内存。A 的 49 次也被覆盖了。', chg: ['x'], hl: [{p: 'X', i: 1, t: 'B'}],
+    s: {x: 2, A: {reg: null, done: 50, what: '全部完成'}, B: {reg: 2, done: 50, what: '全部完成'}, v: '两个线程各加了 50 次，最终 x = 2。关键是两次“读到旧值、挂起很久、再写回覆盖别人”。'}}
+];
+
+/* ===================== 2.2 可见性 ===================== */
+const MESI_S = {M: '已修改', E: '独占', S: '共享', I: '失效'};
+const MESI_L = {M: 'M 已修改：只有这个核有最新值，和内存不一致', E: 'E 独占：只有这个核有，和内存一致', S: 'S 共享：多个核都有，和内存一致', I: 'I 失效：这一行不能再用，要重新读'};
+const C = (sb, st, v, iq) => ({sb, cache: {st, v}, iq});
+function visStage(s, st) {
+  const core = (n, c, thr) => '<div class="core-c"><div class="core-h">核 ' + n + ' ' + th(thr) + '<span class="note">运行线程 ' + thr + '</span></div>' +
+    '<div class="rowv"><span class="rk">写缓冲 Store Buffer</span><div class="slots' + chg(st, 'sb' + n) + '">' + (c.sb.length ? c.sb.map(x => '<span class="chip">' + esc(x) + '</span>').join('') : '<span class="none">空</span>') + '</div></div>' +
+    '<div class="rowv"><span class="rk">L1 缓存行</span><div class="cline' + chg(st, 'cache' + n) + '"><span class="mesi m-' + c.cache.st + '" title="' + MESI_L[c.cache.st] + '">' + c.cache.st + '</span><code>stop = ' + c.cache.v + '</code><span class="note">' + MESI_S[c.cache.st] + '</span></div></div>' +
+    '<div class="rowv"><span class="rk">失效队列 Invalidate Queue</span><div class="slots' + chg(st, 'iq' + n) + '">' + (c.iq.length ? c.iq.map(x => '<span class="chip warn">' + esc(x) + '</span>').join('') : '<span class="none">空</span>') + '</div></div></div>';
+  return '<div class="stack-v"><div class="grid2">' + core(0, s.c0, 'A') + core(1, s.c1, 'B') + '</div>' +
+    '<div class="bus">' + (s.msg && s.msg.length ? s.msg.map(m => '<div class="msg">' + esc(m) + '</div>').join('') : '<div class="msg none">暂时没有消息</div>') + '</div>' +
+    '<div class="memrow' + chg(st, 'mem') + '"><span class="rk">主内存</span><code>stop = ' + s.mem + '</code></div>' +
+    '<div class="bview ' + s.loop + chg(st, 'bview') + '">' + th('B') + '<span>' + s.bsees + '</span></div></div>';
+}
+const VIS_CODE = {
+  plain: [
+    {id: 'A', title: '线程 A · 运行在核 0', lines: ['static boolean stop = false;', '', '// 100ms 后，A 执行：', 'stop = true;']},
+    {id: 'B', title: '线程 B · 运行在核 1', lines: ['int i = 0;', 'while (!stop) {', '    i++;', '}', '', '// JIT 优化后，可能等价于：', 'boolean r = stop;', 'while (!r) { i++; }']}],
+  vol: [
+    {id: 'A', title: '线程 A · 运行在核 0', lines: ['static volatile boolean stop = false;', '', '// 100ms 后，A 执行：', 'stop = true;', '// JIT 在后面补一条 lock addl（StoreLoad 屏障）']},
+    {id: 'B', title: '线程 B · 运行在核 1', lines: ['int i = 0;', 'while (!stop) {   // 每次都是 volatile 读', '    i++;', '}', '', '// volatile 读不能被提到循环外']}]
+};
+const V0 = {c0: C([], 'S', 'false', []), c1: C([], 'S', 'false', []), msg: [], mem: 'false', bsees: '读自己缓存里的 stop = false，继续循环', loop: 'run'};
+function visSteps(v) {
+  const first = {t: '初始状态：两个核各缓存了一份 stop', d: 'stop 的值是 false。两个核都读过它，各自的 L1 缓存里有一份，MESI 状态都是 <b>S（共享）</b>。线程 B 在核 1 上不停循环，每一圈都从自己的缓存读到 false。', hl: [{p: 'B', f: 'while (!stop)', t: 'B'}], s: V0};
+  if (v === 'plain') return [first,
+    {t: 'A 写 stop = true：先放进写缓冲', d: '为了不等别的核，核 0 把这次写先放进<b>写缓冲</b>，线程 A 立刻接着往下执行。这时核 0 的缓存和主内存都还是 false，B 读自己的缓存，当然还是 false。', hl: [{p: 'A', f: 'stop = true;', t: 'A'}, {p: 'B', f: 'while (!stop)', t: 'B'}], chg: ['sb0'],
+      s: {c0: C(['stop = true'], 'S', 'false', []), c1: C([], 'S', 'false', []), msg: [], mem: 'false', bsees: '读自己缓存里的 stop = false，继续循环', loop: 'run'}},
+    {t: '核 0 发出失效通知，核 1 先收下排队', d: '写缓冲要刷进缓存，按 MESI 的规则，必须先让核 1 的那一行失效。核 1 收到失效通知后先放进<b>失效队列</b>，马上回复“收到了”，却还没真正处理。于是核 0 的缓存行变成 M（true），核 1 的那一行仍是 S（false）：B 继续读到旧值。', hl: [{p: 'B', f: 'while (!stop)', t: 'B'}], chg: ['cache0', 'iq1', 'sb0'],
+      s: {c0: C([], 'M', 'true', []), c1: C([], 'S', 'false', ['失效 stop']), msg: ['核 0 → 核 1：Invalidate(stop)', '核 1 → 核 0：Ack（只是收下，还没处理）'], mem: 'false', bsees: '读自己缓存里的 stop = false，继续循环', loop: 'run'}},
+    {t: '核 1 稍后处理失效队列，B 才读到 true', d: '某个时刻，核 1 处理了失效队列，自己的缓存行变成 I。B 再读时缓存不命中，从核 0 取到最新值 true（两边变回 S，主内存也写回 true），循环结束。问题在于“某个时刻”没有任何保证。', hl: [{p: 'B', f: 'while (!stop)', t: 'B'}], chg: ['cache1', 'iq1', 'mem', 'bview'],
+      s: {c0: C([], 'S', 'true', []), c1: C([], 'S', 'true', []), msg: ['核 1 → 核 0：Read(stop)', '核 0 → 核 1：stop = true'], mem: 'true', bsees: '缓存失效后重新读到 stop = true，退出循环', loop: 'exit'}},
+    {t: '另一种结局：JIT 把读提到了循环外', d: '这就是 2.0 节 ForeverLoop 在 JDK 17 上真的卡住的原因。循环跑了很多圈后，JIT 发现循环体里没人改 stop，就按第 7、8 行的写法编译：只在进循环前读一次，放进寄存器。之后 B 根本不再读缓存，<b>循环永远停不下来</b>。', hl: [{p: 'B', f: 'boolean r = stop;', t: 'B'}, {p: 'B', f: 'while (!r)', t: 'B'}], chg: ['bview'],
+      s: {c0: C([], 'S', 'true', []), c1: C([], 'S', 'true', []), msg: [], mem: 'true', bsees: '寄存器里的 r 一直是 false，根本不再读 stop，永远循环', loop: 'forever'}}];
+  return [first,
+    {t: 'volatile 写：写完立刻刷出写缓冲', d: 'volatile 写后面，JIT 会补一条 <code>lock addl</code> 指令，也就是 StoreLoad 屏障。它要求写缓冲里的内容刷进缓存、其他核确认收到失效通知后，A 才能继续往下走。', hl: [{p: 'A', f: 'stop = true;', t: 'A'}, {p: 'A', f: 'lock addl', t: 'A'}], chg: ['cache0', 'iq1'],
+      s: {c0: C([], 'M', 'true', []), c1: C([], 'S', 'false', ['失效 stop']), msg: ['核 0 → 核 1：Invalidate(stop)', '核 1 → 核 0：Ack', '屏障：等写缓冲清空后，A 才继续执行'], mem: 'false', bsees: '下一次读 stop 之前，要先过读屏障', loop: 'run'}},
+    {t: 'volatile 读：先处理完失效队列再读', d: 'B 每次读 volatile 变量前，都要先处理完失效队列（读屏障）。核 1 的缓存行因此变成 I，这次读就会去核 0 取最新值 true。B 读到 true，循环结束。', hl: [{p: 'B', f: 'while (!stop)', t: 'B'}], chg: ['cache1', 'iq1', 'mem', 'bview'],
+      s: {c0: C([], 'S', 'true', []), c1: C([], 'S', 'true', []), msg: ['核 1：先清空失效队列，缓存行置为 I', '核 1 → 核 0：Read(stop)', '核 0 → 核 1：stop = true'], mem: 'true', bsees: '读到 stop = true，退出循环', loop: 'exit'}},
+    {t: 'JIT 也不能把 volatile 读提到循环外', d: 'volatile 同时约束编译器：每一圈都必须真的读一次 stop，不能缓存在寄存器里。x86 硬件本身较强，读端屏障几乎没有开销；在 ARM 等平台上，读端屏障才真正要做事。', hl: [{p: 'B', f: 'volatile 读不能', t: 'B'}],
+      s: {c0: C([], 'S', 'true', []), c1: C([], 'S', 'true', []), msg: [], mem: 'true', bsees: '每一圈都真的读 stop：读到 true，退出循环', loop: 'exit'}}];
+}
+
+/* ===================== 2.4 happens-before 推导 ===================== */
+function hbStage(s) {
+  const box = (id, x, y, main, sub) => '<g class="hb-box' + (s.on.includes(id) ? ' on' : '') + '"><rect x="' + x + '" y="' + y + '" width="240" height="52" rx="10"/><text x="' + (x + 14) + '" y="' + (y + 23) + '">' + main + '</text><text class="sub" x="' + (x + 14) + '" y="' + (y + 42) + '">' + sub + '</text></g>';
+  const e = s.edges;
+  const has = k => e.includes(k);
+  return '<svg class="hb-svg" viewBox="0 0 660 300" role="img" aria-label="happens-before 推导图"><defs><marker id="hb-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="hb-m-ok" d="M0 0L10 5L0 10z"/></marker><marker id="hb-der" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="hb-m-der" d="M0 0L10 5L0 10z"/></marker></defs>' +
+    '<text class="hb-col" x="40" y="20">线程 A</text><text class="hb-col" x="360" y="20">线程 B</text>' +
+    box('1', 40, 30, '① data = 42', '普通写') + box('2', 40, 130, '② ready = true', s.vol ? 'volatile 写' : '普通写') + box('3', 360, 130, '③ if (ready)', s.vol ? 'volatile 读，读到 true' : '普通读，读到 true') + box('4', 360, 230, '④ print(data)', s.res || '打印 data') +
+    (has('12') ? '<path class="hb-e ok" d="M160 82 V128" marker-end="url(#hb-ok)"/><text class="hb-l ok" x="170" y="110">程序顺序规则</text>' : '') +
+    (has('23') ? '<path class="hb-e ok" d="M280 156 H358" marker-end="url(#hb-ok)"/><text class="hb-l ok" x="284" y="148">volatile 规则</text>' : '') +
+    (has('x23') ? '<path class="hb-e no" d="M280 156 H358"/><text class="hb-l no" x="290" y="148">没有规则</text><text class="hb-l no" x="312" y="178" font-size="16">✕</text>' : '') +
+    (has('34') ? '<path class="hb-e ok" d="M480 182 V228" marker-end="url(#hb-ok)"/><text class="hb-l ok" x="490" y="210">程序顺序规则</text>' : '') +
+    (has('14') ? '<path class="hb-e der" d="M280 44 H630 V256 H602" marker-end="url(#hb-der)"/><text class="hb-l der" x="420" y="36">传递性：① hb ④</text>' : '') +
+    '</svg>' + (s.v ? '<div class="verdict ' + s.v[0] + '" style="margin-top:8px">' + s.v[1] + '</div>' : '');
+}
+const HB_CODE = v => [
+  {id: 'D', title: '共享变量', lines: ['int data = 0;', v === 'vol' ? 'volatile boolean ready = false;' : 'boolean ready = false;   // 没加 volatile']},
+  {id: 'A', title: '线程 A', lines: ['data = 42;        // ①', 'ready = true;     // ②']},
+  {id: 'B', title: '线程 B', lines: ['if (ready) {      // ③', '    print(data);  // ④', '}']}
+];
+function hbSteps(v) {
+  if (v === 'vol') return [
+    {t: '① hb ②：程序顺序规则', d: '同一个线程里，前面的操作 happens-before 后面的操作。', hl: [{p: 'A', i: 0, t: 'A'}, {p: 'A', i: 1, t: 'A'}], s: {vol: true, on: ['1', '2'], edges: ['12']}},
+    {t: '② hb ③：volatile 规则', d: '对 volatile 变量的写，happens-before 之后对它的读。B 在 ③ 读到了 true，说明 ③ 发生在 ② 之后。', hl: [{p: 'A', i: 1, t: 'A'}, {p: 'B', i: 0, t: 'B'}], s: {vol: true, on: ['2', '3'], edges: ['12', '23']}},
+    {t: '③ hb ④：程序顺序规则', d: '在线程 B 里，③ 在 ④ 前面。', hl: [{p: 'B', i: 0, t: 'B'}, {p: 'B', i: 1, t: 'B'}], s: {vol: true, on: ['3', '4'], edges: ['12', '23', '34']}},
+    {t: '传递性：① hb ④，所以 ④ 一定打印 42', d: 'A hb B、B hb C，就有 A hb C。把三条边连起来，① 的写入对 ④ 一定可见。这就是 volatile 的“顺风车”：data 本身不是 volatile，也被 ready 带着保证了可见性。', hl: [{p: 'A', i: 0, t: 'A'}, {p: 'B', i: 1, t: 'B'}], s: {vol: true, on: ['1', '4'], edges: ['12', '23', '34', '14'], res: '一定打印 42', v: ['ok', '结论成立：只要 ③ 读到了 true，④ 就一定看到 42。']}}
+  ];
+  return [
+    {t: '① hb ②：程序顺序规则仍然成立', d: '同一个线程里，前面的操作 happens-before 后面的操作。但这条规则只对线程 A 自己有意义：别的线程看到的顺序，可以和它不一样。', hl: [{p: 'A', i: 0, t: 'A'}, {p: 'A', i: 1, t: 'A'}], s: {vol: false, on: ['1', '2'], edges: ['12']}},
+    {t: '② 和 ③ 之间没有任何规则', d: 'ready 是普通变量，没有任何一条 happens-before 规则把“A 写 ready”和“B 读 ready”连起来。B 读到 true，只说明碰巧看到了这次写，不代表能看到它之前的写。', hl: [{p: 'D', i: 1, t: 'B'}], s: {vol: false, on: ['2', '3'], edges: ['12', 'x23']}},
+    {t: '③ hb ④ 也救不回来', d: '线程 B 里 ③ 在 ④ 前面，但链条在 ② 和 ③ 之间断了。', hl: [{p: 'B', i: 0, t: 'B'}, {p: 'B', i: 1, t: 'B'}], s: {vol: false, on: ['3', '4'], edges: ['12', 'x23', '34']}},
+    {t: '推不出 ① hb ④：④ 可能打印 0', d: '① 和 ② 没有依赖，可能被重排成先写 ready、后写 data；或者 data 的写入还停在 A 所在核的写缓冲里。两种情况下，B 都可能读到 ready = true、data = 0。', hl: [{p: 'B', i: 1, t: 'B'}], s: {vol: false, on: ['4'], edges: ['12', 'x23', '34'], res: '可能打印 0', v: ['bad', '结论不成立：没有 volatile，就没有 ②→③ 这条边，① 对 ④ 不保证可见。']}}
+  ];
+}
+
+/* ===================== 2.7 DCL ===================== */
+const DCL_CODE = v => [
+  {id: 'G', title: 'getInstance()', lines: [
+    v === 'vol' ? 'private static volatile Singleton instance;' : 'private static Singleton instance;   // 没加 volatile',
+    'public static Singleton getInstance() {',
+    '    if (instance == null) {              // 第一次检查（锁外）',
+    '        synchronized (Singleton.class) {',
+    '            if (instance == null) {      // 第二次检查',
+    '                instance = new Singleton();',
+    '            }',
+    '        }',
+    '    }',
+    '    return instance;',
+    '}']},
+  {id: 'N', title: 'new Singleton() 实际是三步', lines: ['memory = allocate();      // ① 分配内存，字段都是默认值', 'ctorInstance(memory);     // ② 执行构造方法，加载 config', 'instance = memory;        // ③ 把引用赋给 instance']}
+];
+function dclStage(s) {
+  const obj = s.obj ? '<div class="box' + (s.obj.init ? '' : '') + '"><div class="box-h">堆上的 Singleton 对象</div><div>config = <code>' + (s.obj.init ? '已加载' : 'null') + '</code> ' + (s.obj.init ? pill('RUNNABLE').replace('RUNNABLE', '构造完成') : '<span class="pill bad">只分配了内存</span>') + '</div></div>' : '<div class="box"><div class="box-h">堆上的 Singleton 对象</div><span class="none">还没有创建</span></div>';
+  return '<div class="stack-v"><div class="grid2">' + obj + '<div class="box"><div class="box-h">静态字段 instance</div><code>' + (s.inst ? '→ 指向左边的对象' : 'null') + '</code></div></div>' +
+    '<div class="grid2"><div class="box lane"><div class="lane-h">' + th('A') + '</div><span class="note">' + s.a + '</span></div><div class="box lane"><div class="lane-h">' + th('B') + '</div><span class="note">' + s.b + '</span></div></div>' + (s.v ? '<div class="verdict ' + s.v[0] + '">' + s.v[1] + '</div>' : '') + '</div>';
+}
+function dclSteps(v) {
+  const s1 = {t: 'A：两次检查都是 null，准备 new', d: 'A 第一次检查发现 instance 是 null，进入 synchronized；第二次检查仍是 null，开始创建对象。', hl: [{p: 'G', i: 2, t: 'A'}, {p: 'G', i: 3, t: 'A'}, {p: 'G', i: 4, t: 'A'}], s: {obj: null, inst: false, a: '持有锁，准备 new', b: '还没调用'}};
+  const s2 = {t: 'A 执行 ①：分配内存', d: '对象有了内存，但构造方法还没执行，config 还是默认值 null。', hl: [{p: 'G', i: 5, t: 'A'}, {p: 'N', i: 0, t: 'A'}], s: {obj: {init: false}, inst: false, a: '执行 ①', b: '还没调用'}};
+  if (v === 'plain') return [s1, s2,
+    {t: 'A 先执行了 ③：② 被重排到后面', d: '② 和 ③ 之间没有数据依赖，编译器和 CPU 可以把 ③ 提前。对 A 自己来说结果一样（as-if-serial），对别的线程就不一样了：<b>instance 已经不是 null，对象却还没初始化</b>。', hl: [{p: 'N', i: 2, t: 'A'}], s: {obj: {init: false}, inst: true, a: '执行了 ③，② 还没做', b: '还没调用'}},
+    {t: 'B 调用 getInstance：锁外第一次检查就返回了', d: 'B 看到 instance 不是 null，根本没进 synchronized，直接把它拿走了。synchronized 管不到锁外的这次读。', hl: [{p: 'G', i: 2, t: 'B'}, {p: 'G', i: 9, t: 'B'}], s: {obj: {init: false}, inst: true, a: '执行了 ③，② 还没做', b: '拿到了 instance'}},
+    {t: 'B 用到了没初始化完的对象', d: 'B 去读 config，读到的是 null。A 这时才执行 ②，已经晚了。', hl: [{p: 'N', i: 1, t: 'A'}], s: {obj: {init: false}, inst: true, a: '这时才执行 ②', b: '读到 config = null，出错', v: ['bad', '单例拿到了，却是“半个对象”。这类问题极难复现，只在特定的重排和时序下出现。']}}
+  ];
+  return [s1, s2,
+    {t: 'A 执行 ②：构造方法跑完', d: 'volatile 写前面有 StoreStore 屏障：② 的所有写入必须先完成，不能被排到 ③ 后面。', hl: [{p: 'N', i: 1, t: 'A'}], s: {obj: {init: true}, inst: false, a: '执行 ②', b: '还没调用'}},
+    {t: 'A 执行 ③：volatile 写 instance', d: '此刻对象已经完整，instance 才指向它。', hl: [{p: 'N', i: 2, t: 'A'}, {p: 'G', i: 5, t: 'A'}], s: {obj: {init: true}, inst: true, a: '执行 ③', b: '还没调用'}},
+    {t: 'B 第一次检查看到非 null，拿到的一定是完整对象', d: '根据 volatile 规则，A 对 instance 的写 happens-before B 对它的读；再加上程序顺序规则，② 里的写入对 B 都可见。', hl: [{p: 'G', i: 2, t: 'B'}, {p: 'G', i: 9, t: 'B'}], s: {obj: {init: true}, inst: true, a: '已退出', b: '读到 config 已加载', v: ['ok', '加上 volatile，B 要么看到 null（去锁里等），要么看到一个完整的对象。']}}
+  ];
+}
+
+/* ===================== 3.2 字节码与异常表 ===================== */
+const BC_LINES = ['monitorenter', 'aload_0', 'dup', 'getfield      count', 'iconst_1', 'iadd', 'putfield      count', 'aload_1', 'monitorexit', 'goto          27', 'astore_2', 'aload_1', 'monitorexit', 'aload_2', 'athrow', 'return', '', 'Exception table:', '  from  to  target  type', '     7  19      22   any', '    22  25      22   any'];
+const BC_NUMS = ['6:', '7:', '8:', '9:', '12:', '13:', '14:', '17:', '18:', '19:', '22:', '23:', '24:', '25:', '26:', '27:', '', '', '', '', ''];
+const BC_CODE = () => [{id: 'J', title: 'javap -c 的输出（block() 方法，节选）', lines: BC_LINES, nums: BC_NUMS, plain: true}];
+function bcStage(s) {
+  return '<div class="stack-v"><div class="grid2"><div class="box kv"><span class="rk">lock 的持有情况</span><span>' + (s.lock ? th('main') + ' 持有中' : '<span class="pill idle">空闲</span>') + '</span></div>' +
+    '<div class="box kv"><span class="rk">异常</span><span>' + (s.ex ? '<span class="pill bad">' + s.ex + '</span>' : '<span class="none">没有</span>') + '</span></div></div>' + (s.v ? '<div class="verdict ' + s.v[0] + '">' + s.v[1] + '</div>' : '') + '</div>';
+}
+function bcSteps(v) {
+  const J = 'J', t = 'main';
+  const s1 = {t: 'monitorenter：加锁', d: '第 5 条已经把锁对象存进了局部变量 1，第 6 条用它加锁。', hl: [{p: J, i: 0, t}], s: {lock: true, ex: null}};
+  if (v === 'ok') return [s1,
+    {t: '执行 count++', d: '第 7~14 条就是 count++ 的读、加、写。', hl: [1, 2, 3, 4, 5, 6].map(i => ({p: J, i, t})), s: {lock: true, ex: null}},
+    {t: '正常出口：monitorexit 释放锁', d: '用局部变量 1 里保存的同一个锁对象解锁。', hl: [{p: J, i: 7, t}, {p: J, i: 8, t}], s: {lock: false, ex: null}},
+    {t: 'goto 27，方法返回', d: '正常路径跳过了 22~26 的异常处理代码。', hl: [{p: J, i: 9, t}, {p: J, i: 15, t}], s: {lock: false, ex: null, v: ['ok', '正常路径：加锁一次，解锁一次。']}}
+  ];
+  return [s1,
+    {t: '同步块里抛出了异常', d: '假设第 9 条执行时抛出了异常（比如同步块里换成调用一个会抛 RuntimeException 的方法）。后面的指令都不会执行了。', hl: [{p: J, i: 3, t}], s: {lock: true, ex: 'RuntimeException'}},
+    {t: '查异常表：跳到第 22 条', d: '异常表第一行说：第 7~19 条之间抛出任何类型（any）的异常，都跳到第 22 条。', hl: [{p: J, i: 19, t}, {p: J, i: 10, t}], s: {lock: true, ex: 'RuntimeException，暂存到局部变量 2'}},
+    {t: '先 monitorexit 释放锁', d: '异常处理代码第一件事就是解锁。', hl: [{p: J, i: 11, t}, {p: J, i: 12, t}], s: {lock: false, ex: 'RuntimeException，暂存到局部变量 2'}},
+    {t: '再 athrow 把异常抛出去', d: '锁已经释放，异常继续向调用者传播。第二行异常表（22~25）覆盖的是这段处理代码本身，是 javac 加的保险。', hl: [{p: J, i: 13, t}, {p: J, i: 14, t}], s: {lock: false, ex: 'RuntimeException，抛给调用者', v: ['ok', '这就是“synchronized 抛异常也会释放锁”的底层保证：编译器替你写好了 finally。']}}
+  ];
+}
+
+/* ===================== 3.3 Mark Word 比特查看器 ===================== */
+const SEGDEF = {
+  unlocked: [[63, 39, '未使用', 'u'], [38, 8, 'hashCode', 'h'], [7, 7, '未使用', 'u'], [6, 3, 'GC 年龄', 'a'], [2, 2, '偏向位', 'b'], [1, 0, '锁标志', 'l']],
+  biased: [[63, 10, '线程指针', 't'], [9, 8, 'epoch', 'e'], [7, 7, '未使用', 'u'], [6, 3, 'GC 年龄', 'a'], [2, 2, '偏向位', 'b'], [1, 0, '锁标志', 'l']],
+  thin: [[63, 2, 'Lock Record 指针', 'p'], [1, 0, '锁标志', 'l']],
+  heavy: [[63, 2, 'ObjectMonitor 指针', 'p'], [1, 0, '锁标志', 'l']]
+};
+const SW = {u: 'var(--surface-2)', h: 'color-mix(in srgb, var(--t3) 40%, transparent)', a: 'color-mix(in srgb, var(--t4) 40%, transparent)', b: 'color-mix(in srgb, var(--t2) 40%, transparent)', l: 'var(--accent)', t: 'color-mix(in srgb, var(--t1) 35%, transparent)', p: 'color-mix(in srgb, var(--t1) 35%, transparent)', e: 'color-mix(in srgb, var(--t2) 25%, transparent)'};
+function bitGrid(hex, kind) {
+  const n = BigInt(hex), segs = SEGDEF[kind];
+  const segOf = b => segs.find(s => b <= s[0] && b >= s[1]);
+  const row = (hi, lo) => { let c = ''; for (let b = hi; b >= lo; b--) { const s = segOf(b); c += '<span class="bit k-' + s[3] + '" title="第 ' + b + ' 位 · ' + s[2] + '">' + ((n >> BigInt(b)) & 1n) + '</span>'; } return '<div class="bitrow">' + c + '</div>'; };
+  const legend = segs.map(s => {
+    const w = s[0] - s[1] + 1, val = (n >> BigInt(s[1])) & ((1n << BigInt(w)) - 1n);
+    let disp;
+    if (s[3] === 'p' || s[3] === 't') disp = '0x' + (val << BigInt(s[1])).toString(16) + (val === 0n ? '（还没偏向任何线程）' : '（地址）');
+    else if (s[3] === 'h') disp = '0x' + val.toString(16);
+    else disp = val.toString(2).padStart(w, '0');
+    return '<li><span class="sw" style="background:' + SW[s[3]] + '"></span><b>' + s[2] + '</b><span class="note mono">第 ' + s[0] + (w > 1 ? '~' + s[1] : '') + ' 位</span><code>' + disp + '</code></li>';
+  }).join('');
+  return '<div class="bits"><div class="bitaxis"><span>第 63 位</span><span>第 32 位</span></div>' + row(63, 32) + '<div class="bitaxis"><span>第 31 位</span><span>第 0 位</span></div>' + row(31, 0) + '</div><ul class="seglegend">' + legend + '</ul>';
+}
+const MW_STATES = [
+  {k: 'unlocked', label: '无锁 001', hex: '0x0000005c647e0501', src: 'MarkWordDemo 第 2 行：调用 hashCode() 之后', note: '中间那段 hashCode 的值是 0x5c647e05，正好等于 hashCode() 的返回值。'},
+  {k: 'biased', label: '偏向锁 101', hex: '0x000000014300e005', src: '用 -XX:+UseBiasedLocking 打开偏向锁后，加锁中实测', note: '高位存的是持有线程的指针（常说的“线程 ID”），低三位 101。'},
+  {k: 'thin', label: '轻量级锁 00', hex: '0x000000016bddaad0', src: 'MarkWordDemo 第 3 行：单线程加锁中', note: '除了最低两位，其余都是指向持锁线程栈上 Lock Record 的地址；原来的 hashCode 被搬进了 Lock Record。'},
+  {k: 'heavy', label: '重量级锁 10', hex: '0x000000012693e942', src: 'MarkWordDemo 第 5 行：另一个线程来抢锁', note: '其余位是 ObjectMonitor 的地址（最低两位补 0 后是 0x12693e940）。'}
+];
+function markWordLab(root) {
+  root.classList.add('lab');
+  let cur = 0;
+  root.innerHTML = labTop({kind: '比特查看器', title: '把 Mark Word 的 64 位摊开看', intro: '下面每个十六进制值都是 MarkWordDemo 在 JDK 17 上打印出来的真实值。切换锁状态，看同样的 64 位在不同状态下怎么被重新解读。'}) +
+    '<div class="ctrl"><div class="seg" role="group" aria-label="锁状态">' + MW_STATES.map((m, i) => '<button type="button" data-i="' + i + '">' + m.label + '</button>').join('') + '</div></div><div class="mw-body"></div>';
+  const render = () => {
+    const m = MW_STATES[cur];
+    $('.mw-body', root).innerHTML = '<div class="box"><div class="mw-head"><span class="rk">Mark Word</span><code>' + m.hex + '</code><span class="note">' + m.src + '</span></div>' + bitGrid(m.hex, m.k) + '<p class="narr-p" style="margin-top:8px">' + m.note + '</p></div>';
+    $$('.seg button', root).forEach((b, i) => b.setAttribute('aria-pressed', i === cur ? 'true' : 'false'));
+  };
+  $$('.seg button', root).forEach((b, i) => { b.onclick = () => { cur = i; render(); }; });
+  root._key = e => {
+    if (e.key === 'ArrowRight') { cur = Math.min(MW_STATES.length - 1, cur + 1); render(); return true; }
+    if (e.key === 'ArrowLeft') { cur = Math.max(0, cur - 1); render(); return true; }
+    return false;
+  };
+  render();
+}
+
+/* ===================== 3.4 synchronized 的一生 ===================== */
+const MK = {
+  fresh: {kind: 'unlocked', hex: '0x0000000000000001', hash: '0', label: '无锁 · 001'},
+  hashed: {kind: 'unlocked', hex: '0x0000005c647e0501', hash: '0x5c647e05', label: '无锁 · 001'},
+  thin: {kind: 'thin', hex: '0x000000016bddaad0', label: '轻量级锁 · 00'},
+  heavy: {kind: 'heavy', hex: '0x000000012693e942', label: '重量级锁 · 10'}
+};
+function markStrip(m) {
+  let segs;
+  if (m.kind === 'unlocked') segs = [[25, '未使用', '0'], [31, 'hashCode', m.hash], [1, '未用', '0'], [4, 'GC 年龄', '0000'], [1, '偏向', '0'], [2, '锁标志', '01', 1]];
+  else if (m.kind === 'thin') segs = [[62, '指向 A 栈上 Lock Record 的指针', '0x16bddaad0'], [2, '锁标志', '00', 1]];
+  else segs = [[62, '指向 ObjectMonitor 的指针', '0x12693e940'], [2, '锁标志', '10', 1]];
+  return '<div class="strip-wrap"><div class="strip">' + segs.map(x => '<div class="seg-b' + (x[3] ? ' key' : '') + '" style="flex:' + x[0] + ' 1 0" title="' + x[1] + '，' + x[0] + ' 位"><span class="sv">' + x[2] + '</span><span class="sl">' + x[1] + ' · ' + x[0] + '</span></div>').join('') + '</div></div>';
+}
+function lcStage(s, st) {
+  const m = s.mark;
+  const obj = '<div class="mw-head"><span class="rk">Mark Word</span><code class="' + chg(st, 'mark').trim() + '">' + m.hex + '</code><span class="tag">' + m.label + '</span></div>' + markStrip(m) +
+    (m.kind === 'thin' ? '<div class="lane-h" style="margin-top:8px"><span class="note">持锁线程</span>' + th('A', 'tok-A') + '<span class="note">没有 monitor，Mark Word 直接指向 A 栈上的 Lock Record</span></div>' : '');
+  const stack = s.lr ? '<div class="box' + chg(st, 'lr') + '"><div class="box-h">' + th('A') + ' 的栈帧里</div><code style="font-size:12.5px">Lock Record @ 0x16bddaad0，保管着原 Mark Word 0x0000005c647e0501</code></div>' : '';
+  const mon = s.mon ? '<div class="box' + chg(st, 'mon') + '"><div class="box-h">ObjectMonitor @ 0x12693e940 <span class="note">JVM 另外分配的 C++ 对象，_header 里保管着原 Mark Word</span></div>' + zones(s.mon) + '</div>'
+    : '<div class="box"><div class="box-h">ObjectMonitor</div><span class="none">' + (s.monNote || '还不存在。没有竞争、也没人调用 wait 时，根本用不到它。') + '</span></div>';
+  return '<div class="stack-v"><div class="box' + chg(st, 'obj') + '"><div class="box-h">堆上的对象 lock</div>' + obj + '</div>' + stack + mon + '<div class="box"><div class="box-h">两个线程此刻的状态</div>' + thrTable(['A', 'B'], s.th, st) + '</div></div>';
+}
+const LC_CODE = () => [
+  {id: 'main', title: 'main 线程', lines: ['Object lock = new Object();', 'lock.hashCode();']},
+  {id: 'A', title: '线程 A', lines: ['synchronized (lock) {', '    while (!ready) {', '        lock.wait();', '    }', '    use();', '}']},
+  {id: 'B', title: '线程 B', lines: ['synchronized (lock) {', '    ready = true;', '    lock.notify();', '}']}
+];
+function lcSteps() {
+  const L = '- locked ' + ADDR, WTL = '- waiting to lock ' + ADDR, WON = '- waiting on ' + ADDR, RL = '- waiting to re-lock in wait() ' + ADDR;
+  const N = TS('NEW', '', '还没开始执行'), X = TS('TERMINATED', '', '线程结束');
+  return [
+    {t: '创建对象：Mark Word 末三位是 001', d: 'new 出来的对象放在堆上，Mark Word 末三位是 <b>001</b>（无锁），hashCode 的 31 位还全是 0。这时没有 ObjectMonitor：绝大多数对象一辈子都用不到它。', hl: [{p: 'main', i: 0, t: 'main'}], chg: ['obj'], s: {mark: MK.fresh, lr: false, mon: null, th: {A: N, B: N}}},
+    {t: '调用 hashCode()：哈希值写进对象头', d: '第一次调用 hashCode() 时，JVM 算出 <code>0x5c647e05</code>，写进 Mark Word 的第 8~38 位。', hl: [{p: 'main', i: 1, t: 'main'}], chg: ['mark'], s: {mark: MK.hashed, lr: false, mon: null, th: {A: N, B: N}}},
+    {t: 'A 加锁，没有竞争：轻量级锁', d: 'A 在自己的栈帧里建一个 <b>Lock Record</b>，把原来的 Mark Word（含 hashCode）复制进去，再用一次 CAS 把 Mark Word 换成指向它的指针，末两位变成 <b>00</b>。没有 monitor，也没有进内核。', hl: [{p: 'A', i: 0, t: 'A'}], chg: ['mark', 'lr', 'thA'], s: {mark: MK.thin, lr: true, mon: null, th: {A: TS('RUNNABLE', L, '持有锁'), B: N}}},
+    {t: 'B 也来加锁：锁膨胀成重量级', d: 'B 的 CAS 失败，说明出现了竞争。JVM 分配一个 <b>ObjectMonitor</b>，把原 Mark Word 搬进它的 _header，再让对象头指向它，末两位变成 <b>10</b>。A 成为 Owner；B 自旋几轮还拿不到，就进入 EntryList 并 park。', hl: [{p: 'B', i: 0, t: 'B'}], chg: ['mark', 'mon', 'thB'], s: {mark: MK.heavy, lr: false, mon: {owner: 'A', entry: ['B'], wait: []}, th: {A: TS('RUNNABLE', L, '持有锁'), B: TS('BLOCKED', WTL, '在 EntryList 等锁')}}},
+    {t: 'A 调用 wait()：让出锁，进 WaitSet', d: 'ready 还是 false，A 调用 lock.wait()，把锁让出来，进入 <b>WaitSet</b>。Owner 空了，JVM 叫醒 B 去抢锁。', hl: [{p: 'A', i: 1, t: 'A'}, {p: 'A', i: 2, t: 'A'}], chg: ['thA', 'thB'], s: {mark: MK.heavy, lr: false, mon: {owner: null, entry: ['B'], wait: ['A']}, th: {A: TS('WAITING', WON, '在 WaitSet 等通知'), B: TS('BLOCKED', WTL, '已被唤醒，正在抢锁')}}},
+    {t: 'B 拿到锁，把 ready 改成 true', d: 'B 成为 Owner，执行 ready = true。A 还在 WaitSet 里睡着。', hl: [{p: 'B', i: 1, t: 'B'}], chg: ['thB'], s: {mark: MK.heavy, lr: false, mon: {owner: 'B', entry: [], wait: ['A']}, th: {A: TS('WAITING', WON, '在 WaitSet 等通知'), B: TS('RUNNABLE', L, '持有锁')}}},
+    {t: 'B 调用 notify()：A 被挪回 EntryList', d: 'notify 只是把 A 挪到 EntryList，<b>并没有把锁交给它</b>。B 仍是 Owner，A 从 WAITING 变成 BLOCKED。', hl: [{p: 'B', i: 2, t: 'B'}], chg: ['thA'], s: {mark: MK.heavy, lr: false, mon: {owner: 'B', entry: ['A'], wait: []}, th: {A: TS('BLOCKED', RL, '回到 EntryList 重新排队'), B: TS('RUNNABLE', L, '持有锁')}}},
+    {t: 'B 退出同步块：释放锁，叫醒 A', d: 'monitorexit 把 Owner 清空，再从 EntryList 叫醒 A。B 的线程结束。', hl: [{p: 'B', i: 3, t: 'B'}], chg: ['thB'], s: {mark: MK.heavy, lr: false, mon: {owner: null, entry: ['A'], wait: []}, th: {A: TS('BLOCKED', RL, '已被唤醒，正在抢锁'), B: X}}},
+    {t: 'A 重新拿到锁，从 wait() 返回', d: 'A 成为 Owner，回到 while 再检查一次 ready：这次是 true，跳出循环执行 use()。', hl: [{p: 'A', i: 1, t: 'A'}, {p: 'A', i: 4, t: 'A'}], chg: ['thA'], s: {mark: MK.heavy, lr: false, mon: {owner: 'A', entry: [], wait: []}, th: {A: TS('RUNNABLE', L, '持有锁'), B: X}}},
+    {t: 'A 退出：monitor 空了，对象头还指向它', d: '三个区域都空了，但对象头仍然指向这个 ObjectMonitor：<b>正在使用的重量级锁不会退回轻量级锁</b>。', hl: [{p: 'A', i: 5, t: 'A'}], chg: ['thA'], s: {mark: MK.heavy, lr: false, mon: {owner: null, entry: [], wait: []}, th: {A: X, B: X}}},
+    {t: '稍后：JVM 回收空闲的 monitor', d: 'JDK 15 起，后台线程会异步回收不再使用的 monitor：把 _header 里保管的原 Mark Word 写回对象头，对象回到无锁状态，hashCode 也还在。', hl: [], chg: ['mark'], s: {mark: MK.hashed, lr: false, mon: null, monNote: '已被回收：原 Mark Word 写回了对象头。下次再有竞争，会重新膨胀。', th: {A: X, B: X}}}
+  ];
+}
+
+/* ===================== 3.5 锁升级 ===================== */
+const RUNGS = [['无锁', '001'], ['偏向锁', '101 · 比较线程指针'], ['轻量级锁', '00 · 一次 CAS'], ['重量级锁', '10 · 抢不到就 park']];
+const UP_CODE = () => [
+  {id: 'main', title: 'main 线程', lines: ['Object lock = new Object();']},
+  {id: 'T1', title: '线程 T1', lines: ['synchronized (lock) { … }   // 第一次', 'synchronized (lock) { … }   // 第二次']},
+  {id: 'T2', title: '线程 T2', lines: ['synchronized (lock) {', '    work();                 // 持锁一段时间', '}']},
+  {id: 'T3', title: '线程 T3', lines: ['synchronized (lock) { … }']}
+];
+function upStage(s, st) {
+  const ladder = '<div class="ladder">' + RUNGS.map((r, i) => '<div class="rung' + (i === s.lv ? ' on' : i < s.lv ? ' past' : '') + '"><b>' + r[0] + '</b><span>' + r[1] + '</span></div>').join('') + '</div>';
+  const thr = '<div class="grid2" style="grid-template-columns:repeat(3,minmax(0,1fr))">' + ['T1', 'T2', 'T3'].map(t => '<div class="box lane' + chg(st, 'th' + t) + '"><div class="lane-h">' + th(t) + pill(s.th[t][0]) + '</div><span class="note">' + (s.th[t][1] || '') + '</span></div>').join('') + '</div>';
+  return '<div class="stack-v">' + ladder + '<div class="box' + chg(st, 'mark') + '"><div class="mw-head"><span class="rk">Mark Word</span><code>' + s.hex + '</code></div>' + bitGrid(s.hex, s.kind) + '</div>' +
+    '<div class="box"><span class="rk">这次加锁的代价</span><div>' + s.cost + '</div></div>' + (s.mon ? '<div class="box"><div class="box-h">ObjectMonitor</div>' + zones(s.mon) + '</div>' : '') + thr + '</div>';
+}
+function upSteps() {
+  const N = ['NEW', '还没执行到'], X = ['TERMINATED', '已结束'];
+  return [
+    {t: 'new 出对象：匿名偏向', d: '假设偏向锁是开启的（JDK 8 默认开启；JDK 15 起默认关闭）。新对象的 Mark Word 末三位是 <b>101</b>，线程指针全是 0，叫“匿名偏向”：可以偏向，但还没偏向任何线程。', hl: [{p: 'main', i: 0, t: 'main'}], chg: ['mark'],
+      s: {lv: 1, hex: '0x0000000000000005', kind: 'biased', cost: '还没有加锁', th: {T1: N, T2: N, T3: N}}},
+    {t: 'T1 第一次加锁：CAS 写入线程指针', d: 'T1 用<b>一次 CAS</b> 把自己的线程指针写进 Mark Word，对象从此偏向 T1。', hl: [{p: 'T1', i: 0, t: 'T1'}], chg: ['mark', 'thT1'],
+      s: {lv: 1, hex: '0x000000014300e005', kind: 'biased', cost: '一次 CAS', th: {T1: ['RUNNABLE', '持有锁'], T2: N, T3: N}}},
+    {t: 'T1 退出同步块：什么都不改', d: '偏向锁退出时<b>不撤销</b>，线程指针留在对象头里，等着 T1 下次再来。', hl: [{p: 'T1', i: 0, t: 'T1'}],
+      s: {lv: 1, hex: '0x000000014300e005', kind: 'biased', cost: '释放时什么都不做', th: {T1: ['RUNNABLE', '已退出同步块'], T2: N, T3: N}}},
+    {t: 'T1 再次加锁：只比较一下', d: 'Mark Word 里的线程指针就是自己，直接进入。<b>连 CAS 都不用</b>：这就是偏向锁省掉的开销。', hl: [{p: 'T1', i: 1, t: 'T1'}], chg: ['thT1'],
+      s: {lv: 1, hex: '0x000000014300e005', kind: 'biased', cost: '比较一下线程指针，没有任何原子操作', th: {T1: ['RUNNABLE', '持有锁（第二次）'], T2: N, T3: N}}},
+    {t: 'T2 来加锁：先撤销偏向', d: 'T1 已经结束，T2 来加锁，发现对象偏向的是别人，就要<b>撤销偏向</b>：等全局安全点（所有线程暂停，STW），检查 T1 是否还在同步块里。T1 不在，于是对象回到无锁状态。', hl: [{p: 'T2', i: 0, t: 'T2'}], chg: ['mark', 'thT2'],
+      s: {lv: 0, hex: '0x0000000000000001', kind: 'unlocked', cost: '等全局安全点（STW）撤销偏向，这一步很贵', th: {T1: X, T2: ['RUNNABLE', '正在加锁'], T3: N}}},
+    {t: 'T2 用 CAS 加上轻量级锁', d: 'T2 在自己的栈帧里建 Lock Record，用一次 CAS 把 Mark Word 换成指向它的指针，末两位 <b>00</b>。', hl: [{p: 'T2', i: 0, t: 'T2'}, {p: 'T2', i: 1, t: 'T2'}], chg: ['mark'],
+      s: {lv: 2, hex: '0x000000016bddaad0', kind: 'thin', cost: '一次 CAS（地址取自 3.3 节实测，仅作示意）', th: {T1: X, T2: ['RUNNABLE', '持有锁'], T3: N}}},
+    {t: 'T2 还没放锁，T3 来抢：膨胀为重量级', d: 'T3 的 CAS 失败，出现了真正的竞争。锁膨胀成重量级，末两位 <b>10</b>，Mark Word 指向 ObjectMonitor。T3 自适应自旋几轮仍拿不到，就 park 挂起。', hl: [{p: 'T3', i: 0, t: 'T3'}], chg: ['mark', 'thT3'],
+      s: {lv: 3, hex: '0x000000012693e942', kind: 'heavy', cost: 'T3 自旋失败后 park：进内核挂起，微秒级', mon: {owner: 'T2', entry: ['T3'], wait: []}, th: {T1: X, T2: ['RUNNABLE', '持有锁'], T3: ['BLOCKED', '在 EntryList 等锁']}}},
+    {t: 'T2 释放锁，唤醒 T3', d: 'T2 退出时从 EntryList 叫醒 T3（unpark，同样要进内核）。之后这把锁一直是重量级，直到空闲后被 JVM 回收（3.4 节）。', hl: [{p: 'T2', i: 2, t: 'T2'}], chg: ['thT2', 'thT3'],
+      s: {lv: 3, hex: '0x000000012693e942', kind: 'heavy', cost: 'unpark 唤醒 T3：进内核', mon: {owner: 'T3', entry: [], wait: []}, th: {T1: X, T2: X, T3: ['RUNNABLE', '持有锁']}}}
+  ];
+}
+
+/* ===================== 注册与挂载 ===================== */
+const LABS = {
+  objlayout: objLayout,
+  monitordemo: el => stepLab(el, {title: '跟着 MonitorStateDemo 走一遍', intro: '和下面的程序是同一个场景：三个线程分别待在 Owner、EntryList、WaitSet。每一步都标出了此刻的线程状态和 jstack 里会看到的那一行。', code: () => MD_CODE, steps: mdSteps, stage: mdStage}),
+  statemachine: stateMachine,
+  notifydemo: el => stepLab(el, {title: '三个线程轮流打印：notify 为什么会卡死', intro: '同一个场景，切换 notify 和 notifyAll 对比。这也是单元十一“循环打印 ABC”最容易写错的地方。', variants: [{key: 'one', label: 'notify()'}, {key: 'all', label: 'notifyAll()'}], variantLabel: '唤醒方式', code: NT_CODE, steps: ntSteps, stage: ntStage}),
+  interruptdemo: el => stepLab(el, {title: '中断标志是怎么被“吞掉”的', intro: '盯住中断标志位这一个比特。切换 catch 里的写法，看线程能不能停下来。', variants: [{key: 'keep', label: 'catch 里恢复标志'}, {key: 'drop', label: 'catch 里什么都不做'}], variantLabel: 'catch 写法', code: IT_CODE, steps: itSteps, stage: itStage}),
+  race: raceLab,
+  min2: el => stepLab(el, {title: '各加 50 次，最小为什么是 2', intro: '把上面那段构造过程一步步放慢。', code: () => [{id: 'X', title: '两个线程都执行', lines: ['for (int i = 0; i < 50; i++) {', '    x++;   // 读 x → 加 1 → 写回 x', '}']}], steps: () => M2_STEPS, stage: m2Stage}),
+  visibility: el => stepLab(el, {title: '一个核写的值，另一个核为什么看不到', intro: '线程 A 把 stop 改成 true，线程 B 在另一个核上循环读 stop。切换“普通变量 / volatile”，对比写缓冲、缓存行和失效队列的变化。', variants: [{key: 'plain', label: '普通变量'}, {key: 'vol', label: 'volatile'}], variantLabel: '变量类型', code: v => VIS_CODE[v], steps: visSteps, stage: visStage}),
+  hb: el => stepLab(el, {kind: '推导链', title: '用 happens-before 推出 ④ 一定打印 42', intro: '一条边一条边地连。切换到“普通变量”，看链条从哪里断开。', variants: [{key: 'vol', label: 'ready 是 volatile'}, {key: 'plain', label: 'ready 是普通变量'}], variantLabel: 'ready 的类型', code: HB_CODE, steps: hbSteps, stage: hbStage}),
+  dcl: el => stepLab(el, {title: '没有 volatile 的 DCL 怎么拿到“半个对象”', intro: '两个线程同时调用 getInstance()。切换有无 volatile，对比 ② ③ 的执行顺序。', variants: [{key: 'plain', label: '没有 volatile'}, {key: 'vol', label: '加上 volatile'}], variantLabel: 'instance 的声明', code: DCL_CODE, steps: dclSteps, stage: dclStage}),
+  bytecode: el => stepLab(el, {title: '沿着字节码走一遍：正常出口和异常出口', intro: '同一段字节码，切换“正常执行 / 抛出异常”，看两条路径怎么都走到 monitorexit。', variants: [{key: 'ok', label: '正常执行'}, {key: 'ex', label: '抛出异常'}], variantLabel: '执行路径', code: BC_CODE, steps: bcSteps, stage: bcStage}),
+  markword: markWordLab,
+  lifecycle: el => stepLab(el, {kind: '综合演练', title: 'synchronized 的一生', intro: '把本单元串起来：一个对象从创建到被两个线程争抢，Mark Word 怎么变，ObjectMonitor 什么时候出现，线程怎么在三个区域之间移动。', code: LC_CODE, steps: lcSteps, stage: lcStage}),
+  upgrade: el => stepLab(el, {title: '锁升级：每一级省掉了什么', intro: '偏向锁打开时，一个对象先后被 T1、T2、T3 加锁。看 Mark Word 的比特怎么变，以及每次加锁付出的代价。', code: UP_CODE, steps: upSteps, stage: upStage})
+};
+$$('.lab-mount').forEach(el => {
+  const f = LABS[el.dataset.lab];
+  try { f(el); } catch (err) { el.innerHTML = '<p class="none">这个演示加载失败：' + esc(err.message) + '</p>'; if (window.console) console.error(err); }
+});
+
+/* ===================== 代码块高亮 / 复制 ===================== */
+$$('pre.codeblock').forEach(pre => {
+  const code = $('code', pre), raw = code.textContent;
+  if (pre.dataset.lang === 'java') code.innerHTML = raw.split('\n').map(hiJava).join('\n');
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'copy'; b.textContent = '复制';
+  b.onclick = () => {
+    const done = ok => { b.textContent = ok ? '已复制' : '请手动选中复制'; setTimeout(() => { b.textContent = '复制'; }, 1600); };
+    try { navigator.clipboard.writeText(raw).then(() => done(true), () => done(false)); } catch (e) { done(false); }
+  };
+  pre.insertBefore(b, code);
+});
+
+/* ===================== 自测 ===================== */
+const store = {get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* 浏览器不允许存储时忽略 */ } }};
+function quizProgress(sec) {
+  const all = $$('.qz', sec), ok = all.filter(q => $('.qz-cb', q).checked).length, p = $('.qz-progress', sec);
+  if (p) p.textContent = ok ? '已掌握 ' + ok + ' / ' + all.length : '';
+}
+$$('section.quiz').forEach(sec => {
+  $$('.qz', sec).forEach(q => {
+    const cb = $('.qz-cb', q), btn = $('.qz-show', q), ans = $('.qz-a', q), key = 'juc-course-' + q.dataset.qid;
+    cb.checked = store.get(key) === '1';
+    q.classList.toggle('done', cb.checked);
+    btn.onclick = () => { ans.hidden = !ans.hidden; btn.textContent = ans.hidden ? '看答案' : '收起答案'; btn.setAttribute('aria-expanded', String(!ans.hidden)); };
+    cb.onchange = () => { store.set(key, cb.checked ? '1' : '0'); q.classList.toggle('done', cb.checked); quizProgress(sec); };
+  });
+  quizProgress(sec);
+});
+
+/* ===================== 首页、目录、翻页 ===================== */
+const LATER = [
+  ['四', 'CAS 与原子类', '先比较再交换，失败了就重来。', false],
+  ['五', 'AQS', 'AQS 只管排队，抢锁的规则交给子类。', true],
+  ['六', '基于 AQS 的同步器', '换一种 state 的算法，就是一个新的同步器。', true],
+  ['七', '线程池', '先核心，再排队，排满了加线程，线程满了就拒绝。', true],
+  ['八', 'CompletableFuture', '别干等结果，先登记结果出来后要做什么。', false],
+  ['九', 'ThreadLocal', '数据挂在线程身上，ThreadLocal 只是钥匙。', false],
+  ['十', '并发容器与死锁', '锁越细并发越高，加锁顺序一乱就会死锁。', false],
+  ['十一', '手写实操题', '没轮到就等，干完改状态并叫醒别人。', false]
+];
+const MOT = ['Java 线程就是内核线程；排队、等待和唤醒都发生在对象的 monitor 上。', '写进了自己的缓存，不等于别人看得见。', '锁记在对象头里，能不进内核就不进内核。'];
+const home = $('#view-home');
+home.insertAdjacentHTML('afterbegin', '<header class="home-hero"><div class="eyebrow">Java 并发 · 交互学习版 · 试点：单元一到三</div><h1>JUC 交互学习手册</h1>' +
+  '<p class="lead">正文和文档版一致。在文字讲不清“同一时刻”的地方，嵌入了可以一步步执行的演示：高亮的代码行是这一步正在执行的代码，旁边是这一刻对象头、缓存和等待队列里发生的变化。</p>' +
+  '<p class="hint">演示的用法：先点一下演示卡片，再用 ← → 翻步、空格自动播放。每个单元末尾的自测题可以点开看答案。</p>' +
+  '<ol class="unitmap">' + TOC.map((u, i) => '<li class="ready"><span class="un">单元' + u.cn + '</span><span class="nm">' + esc(u.title) + '</span><span class="mt">' + MOT[i] + '</span><div class="lk"><a class="go" href="#' + u.id + '">开始学习</a></div></li>').join('') +
+  LATER.map(u => '<li><span class="un">单元' + u[0] + '</span><span class="nm">' + u[1] + '</span><span class="mt">' + u[2] + '</span><div class="lk"><a href="' + DOC_URL + '" target="_blank" rel="noopener">文档版</a>' + (u[3] ? '<a href="' + LAB_URL + '" target="_blank" rel="noopener">可视化实验</a>' : '') + '</div></li>').join('') + '</ol></header>');
+
+const toc = $('#toc');
+toc.innerHTML = '<a href="#home" class="toc-u" data-u="home">导读</a>' + TOC.map(u => '<div class="toc-unit" data-u="' + u.id + '"><a href="#' + u.id + '" class="toc-u" data-u="' + u.id + '"><span class="toc-n">单元' + u.cn + '</span>' + esc(u.title) + '</a><ol class="toc-s">' + u.sections.map(s => '<li><a href="#' + s.id + '" data-s="' + s.id + '">' + esc(s.title) + '</a></li>').join('') + '</ol></div>').join('') +
+  '<div class="toc-sep">还在文档版</div>' + LATER.map(u => '<div class="toc-later"><span class="toc-n">单元' + u[0] + '</span>' + u[1] + '</div>').join('');
+TOC.forEach((u, i) => {
+  const v = $('#view-' + u.id), prev = i === 0 ? ['#home', '导读'] : ['#' + TOC[i - 1].id, '单元' + TOC[i - 1].cn + ' ' + TOC[i - 1].title], next = TOC[i + 1] ? ['#' + TOC[i + 1].id, '单元' + TOC[i + 1].cn + ' ' + TOC[i + 1].title] : null;
+  v.insertAdjacentHTML('beforeend', '<nav class="pager" aria-label="翻页"><a href="' + prev[0] + '"><span>上一篇</span><b>' + esc(prev[1]) + '</b></a>' + (next ? '<a href="' + next[0] + '" style="text-align:right"><span>下一篇</span><b>' + esc(next[1]) + '</b></a>' : '<a href="' + DOC_URL + '" target="_blank" rel="noopener" style="text-align:right"><span>下一篇（文档版）</span><b>单元四 CAS 与原子类</b></a>') + '</nav>');
+});
+$('#toc-btn').onclick = () => { const s = $('#side'), open = !s.classList.contains('open'); s.classList.toggle('open', open); $('#toc-btn').setAttribute('aria-expanded', String(open)); };
+
+/* ===================== 路由与滚动高亮 ===================== */
+let curView = null, spy = null;
+function show(view, sec) {
+  if (curView !== view) {
+    STOPPERS.forEach(f => f());
+    $$('.view').forEach(v => { v.hidden = v.dataset.view !== view; });
+    curView = view;
+    $$('.toc-u').forEach(a => a.classList.toggle('on', a.dataset.u === view));
+    $$('.toc-unit').forEach(d => d.classList.toggle('open', d.dataset.u === view));
+    setupSpy(view);
+  }
+  $('#side').classList.remove('open'); $('#toc-btn').setAttribute('aria-expanded', 'false');
+  const target = sec && document.getElementById(sec);
+  if (target) target.scrollIntoView({block: 'start'}); else window.scrollTo(0, 0);
+}
+function setupSpy(view) {
+  if (spy) spy.disconnect();
+  if (!('IntersectionObserver' in window)) return;
+  const secs = $$('#view-' + view + ' section[id]');
+  spy = new IntersectionObserver(ents => {
+    ents.forEach(en => {
+      if (!en.isIntersecting) return;
+      $$('.toc-s a').forEach(a => a.classList.toggle('on', a.dataset.s === en.target.id));
+    });
+  }, {rootMargin: '0px 0px -70% 0px'});
+  secs.forEach(s => spy.observe(s));
+}
+function route() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  const m = h.match(/^(u\d+)(?:-[a-z0-9]+)?$/);
+  if (m && document.getElementById('view-' + m[1])) show(m[1], h === m[1] ? null : h);
+  else show('home', null);
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[href^="#"]');
+  if (!a) return;
+  const h = a.getAttribute('href');
+  if (h === location.hash) { e.preventDefault(); route(); }
+});
+window.addEventListener('hashchange', route);
+route();
+})();
+</script>

@@ -1,0 +1,14 @@
+# 系统与编辑器
+.DS_Store
+.idea/
+*.iml
+.vscode/
+
+# Java 编译产物
+*.class
+*.jar
+examples/agent/manifest.txt
+out/
+
+# Python
+__pycache__/

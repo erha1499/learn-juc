@@ -1,0 +1,1787 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important} img{max-width:100%}</style>
+<title>JUC 交互学习手册</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700;900&display=swap">
+<style>
+/* 布局：左侧目录（单元 → 小节），右侧一次显示一个单元。
+   正文是一栏可读宽度；“动手”演示是正文里的卡片：上面旁白和控制，下面左代码、右运行状态。 */
+:root{
+  --bg:#f1f3f7; --surface:#ffffff; --panel:#f6f8fb; --surface-2:#e8ecf2; --ink:#152033; --ink-2:#47546c; --ink-3:#76829a;
+  --line:#d4dae4; --line-2:#b9c3d2;
+  --accent:#2b55c4; --accent-ink:#ffffff; --accent-bg:rgba(43,85,196,.09);
+  --t1:#2b55c4; --t2:#b13a6d; --t3:#0d8475; --t4:#8a5a22; --on-th:#ffffff;
+  --ok:#1b8447; --bad:#c2352c; --wait:#9a650b; --idle:#6f7b91;
+  --ok-bg:rgba(27,132,71,.11); --bad-bg:rgba(194,53,44,.10); --wait-bg:rgba(162,106,12,.13); --idle-bg:rgba(111,123,145,.13);
+  --c-kw:#8b2fa6; --c-str:#b0482a; --c-com:#76829a; --c-num:#0d7f70; --c-ty:#1d5c9c;
+  --code-bg:#f6f8fb;
+  --k-mark:#2b55c4; --k-klass:#0d8475; --k-len:#8a5a22; --k-field:#1b8447; --k-ref:#b13a6d; --k-pad:#9aa5b7;
+  --f-display:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+  --f-body:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1219; --surface:#151c27; --panel:#1a2230; --surface-2:#212b39; --ink:#e4e9f1; --ink-2:#a6b1c3; --ink-3:#7d899d;
+    --line:#2a3443; --line-2:#3d495b;
+    --accent:#86a6ff; --accent-ink:#0d1219; --accent-bg:rgba(134,166,255,.12);
+    --t1:#86a6ff; --t2:#f08bb6; --t3:#4fcfbd; --t4:#d9a46a; --on-th:#0d1219;
+    --ok:#5bc98a; --bad:#ff7a70; --wait:#f0b350; --idle:#8e9ab0;
+    --ok-bg:rgba(91,201,138,.14); --bad-bg:rgba(255,122,112,.13); --wait-bg:rgba(240,179,80,.14); --idle-bg:rgba(142,154,176,.15);
+    --c-kw:#d39bf0; --c-str:#f0a080; --c-com:#7d899d; --c-num:#5fd3c2; --c-ty:#8cbcf0;
+    --code-bg:#121923;
+    --k-mark:#86a6ff; --k-klass:#4fcfbd; --k-len:#d9a46a; --k-field:#5bc98a; --k-ref:#f08bb6; --k-pad:#5a667a;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1219; --surface:#151c27; --panel:#1a2230; --surface-2:#212b39; --ink:#e4e9f1; --ink-2:#a6b1c3; --ink-3:#7d899d;
+  --line:#2a3443; --line-2:#3d495b;
+  --accent:#86a6ff; --accent-ink:#0d1219; --accent-bg:rgba(134,166,255,.12);
+  --t1:#86a6ff; --t2:#f08bb6; --t3:#4fcfbd; --t4:#d9a46a; --on-th:#0d1219;
+  --ok:#5bc98a; --bad:#ff7a70; --wait:#f0b350; --idle:#8e9ab0;
+  --ok-bg:rgba(91,201,138,.14); --bad-bg:rgba(255,122,112,.13); --wait-bg:rgba(240,179,80,.14); --idle-bg:rgba(142,154,176,.15);
+  --c-kw:#d39bf0; --c-str:#f0a080; --c-com:#7d899d; --c-num:#5fd3c2; --c-ty:#8cbcf0;
+  --code-bg:#121923;
+  --k-mark:#86a6ff; --k-klass:#4fcfbd; --k-len:#d9a46a; --k-field:#5bc98a; --k-ref:#f08bb6; --k-pad:#5a667a;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--ink); font-family:var(--f-body); font-size:16px; line-height:1.75; margin:0;
+  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); padding-block:0 64px}
+h1,h2,h3{text-wrap:balance}
+button{font:inherit; color:inherit}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+code,.mono{font-family:var(--f-mono)}
+
+/* ---------- 骨架 ---------- */
+.app{max-width:1260px; margin:0 auto; display:grid; grid-template-columns:250px minmax(0, 1fr); gap:40px}
+.side{position:sticky; top:env(safe-area-inset-top, 0px); align-self:start; max-height:100vh; overflow:auto; padding-block:28px 24px; font-size:14px}
+.brand{display:block; font-family:var(--f-display); font-weight:900; font-size:19px; color:var(--ink); text-decoration:none; line-height:1.3}
+.brand small{display:block; font:600 11px var(--f-mono); color:var(--ink-3); letter-spacing:.06em; margin-top:4px}
+.toc-btn{display:none}
+.toc{display:grid; gap:2px; margin-top:18px}
+.toc a{text-decoration:none; color:var(--ink-2); border-radius:7px; padding:4px 8px; display:block}
+.toc a:hover{background:var(--surface)}
+.toc .toc-u{font-weight:700; color:var(--ink); display:flex; gap:8px; align-items:baseline}
+.toc .toc-n{font:600 11px var(--f-mono); color:var(--ink-3); flex:none}
+.toc .toc-u.on{background:var(--surface); box-shadow:inset 3px 0 0 var(--accent)}
+.toc-s{list-style:none; margin:2px 0 8px; padding:0 0 0 14px; display:none; font-size:13px; line-height:1.5}
+.toc-unit.open .toc-s{display:grid; gap:1px}
+.toc-s a{padding:3px 8px}
+.toc-s a.on{color:var(--accent); background:var(--accent-bg)}
+.toc-later{display:flex; gap:8px; align-items:baseline; padding:4px 8px; color:var(--ink-3)}
+.toc-later a{padding:0; margin-left:auto; font-size:12px; color:var(--ink-3); text-decoration:underline}
+.toc-sep{font:600 11px var(--f-mono); color:var(--ink-3); letter-spacing:.06em; margin:12px 8px 4px}
+.side-foot{margin-top:18px; font-size:12.5px; color:var(--ink-3); display:grid; gap:4px; padding:0 8px}
+.main{min-width:0; padding-block:36px 0}
+.view{min-width:0}
+@media (max-width: 980px){
+  .app{grid-template-columns:minmax(0, 1fr); gap:0}
+  .side{position:static; max-height:none; padding-block:18px 8px; border-bottom:1px solid var(--line)}
+  .side-top{display:flex; align-items:center; justify-content:space-between; gap:12px}
+  .toc-btn{display:inline-block}
+  .toc{display:none}
+  .side.open .toc{display:grid}
+  .side-foot{display:none}
+  .side.open .side-foot{display:grid}
+  .main{padding-top:20px}
+}
+
+/* ---------- 正文 ---------- */
+.prose{font-size:16px; line-height:1.85}
+.prose > *{max-width:860px}
+.prose p, .prose li{max-width:44em}
+.prose p{margin:12px 0}
+.prose h2{font-family:var(--f-display); font-weight:900; font-size:clamp(21px, 2.6vw, 25px); line-height:1.35; margin:52px 0 14px; padding-top:18px; border-top:1px solid var(--line)}
+.prose section{scroll-margin-top:16px}
+.prose ul,.prose ol{padding-left:1.4em; margin:10px 0}
+.prose li{margin:5px 0}
+.prose li::marker{color:var(--ink-3)}
+.prose strong{font-weight:700; color:var(--ink)}
+.prose :not(pre) > code{font-size:.84em; background:var(--surface-2); padding:1px 5px; border-radius:4px; word-break:break-word}
+.prose blockquote{margin:12px 0; padding:10px 16px; border-left:3px solid var(--line-2); color:var(--ink-2); background:var(--surface); border-radius:0 8px 8px 0}
+pre.codeblock{position:relative; background:var(--code-bg); border:1px solid var(--line); border-radius:10px; padding:14px 16px; overflow-x:auto; font:13px/1.7 var(--f-mono); margin:14px 0; max-width:860px}
+pre.codeblock code{background:none; padding:0; font-size:inherit; white-space:pre}
+pre.codeblock[data-lang="text"]{color:var(--ink-2)}
+.copy{position:sticky; float:right; left:0; top:0; margin:-6px -8px 0 8px; font:12px var(--f-body); border:1px solid var(--line-2); background:var(--surface); color:var(--ink-3); border-radius:6px; padding:1px 8px; cursor:pointer}
+.copy:hover{color:var(--accent); border-color:var(--accent)}
+.tbl{overflow-x:auto; margin:14px 0; max-width:860px}
+.tbl table{border-collapse:collapse; width:100%; font-size:14.5px; line-height:1.6; background:var(--surface)}
+.tbl th,.tbl td{border:1px solid var(--line); padding:7px 10px; text-align:left; vertical-align:top}
+.tbl th{background:var(--surface-2); font-weight:700}
+.c-kw{color:var(--c-kw)} .c-str{color:var(--c-str)} .c-com{color:var(--c-com); font-style:italic} .c-num{color:var(--c-num)} .c-ty{color:var(--c-ty)}
+
+.u-head{display:grid; gap:6px; margin-bottom:8px}
+.u-no{font:600 12px var(--f-mono); color:var(--accent); letter-spacing:.08em}
+.u-head h1{font-family:var(--f-display); font-weight:900; font-size:clamp(30px, 4.4vw, 42px); line-height:1.2; margin:0}
+.u-sub{margin:0; color:var(--ink-2); font-size:17px}
+.motto{margin:6px 0 0; font-size:16.5px; border-left:3px solid var(--accent); padding-left:12px; color:var(--ink)}
+.core{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px}
+.goals{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 18px; display:grid; gap:6px; margin:14px 0}
+.g-h{font-weight:700; font-size:14px; color:var(--ink-2)}
+.g-row{display:grid; grid-template-columns:auto minmax(0, 1fr); gap:10px; align-items:baseline; font-size:15px}
+.g-tag{font:600 11.5px var(--f-mono); border-radius:999px; padding:1px 9px}
+.g-must{color:var(--bad); background:var(--bad-bg)} .g-plus{color:var(--accent); background:var(--accent-bg)} .g-know{color:var(--idle); background:var(--idle-bg)}
+.hint{color:var(--ink-3); font-size:14px}
+details.qa{border:1px solid var(--line); border-radius:12px; background:var(--surface); margin:10px 0; max-width:860px}
+details.qa summary{cursor:pointer; padding:12px 16px; font-weight:700; list-style:none; display:flex; gap:10px; align-items:baseline}
+details.qa summary::-webkit-details-marker{display:none}
+details.qa summary::before{content:"展开"; flex:none; font:600 11px var(--f-mono); color:var(--accent); background:var(--accent-bg); border-radius:5px; padding:1px 7px}
+details.qa[open] summary::before{content:"收起"}
+details.qa .ans{padding:0 16px 14px; color:var(--ink-2); max-width:none}
+.quizlist{list-style:none; padding:0; counter-reset:q; display:grid; gap:10px; max-width:860px}
+.qz{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 16px; display:grid; gap:8px; counter-increment:q; max-width:none}
+.qz-q{font-weight:700}
+.qz-q::before{content:counter(q) ". "; color:var(--ink-3); font-family:var(--f-mono)}
+.qz-act{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+.qz-ok{font-size:14px; color:var(--ink-2); display:inline-flex; gap:6px; align-items:center; cursor:pointer}
+.qz.done{border-color:var(--ok)}
+.qz-a{color:var(--ink-2); border-top:1px dashed var(--line-2); padding-top:8px}
+.qz-progress{margin-left:8px; color:var(--ok); font-weight:700}
+.pager{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:56px; padding-top:18px; border-top:1px solid var(--line); max-width:860px}
+.pager a{text-decoration:none; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 14px; display:grid; min-width:0}
+.pager a span{font:600 11px var(--f-mono); color:var(--ink-3)}
+.pager a b{color:var(--ink)}
+.pager a:hover{border-color:var(--accent)}
+
+/* ---------- 首页 ---------- */
+.home-hero{display:grid; gap:12px; max-width:860px; margin-bottom:12px}
+.eyebrow{font:600 12px var(--f-mono); letter-spacing:.08em; color:var(--ink-3)}
+.home-hero h1{font-family:var(--f-display); font-weight:900; font-size:clamp(32px, 5vw, 48px); line-height:1.15; margin:0}
+.lead{margin:0; color:var(--ink-2); font-size:17px}
+.unitmap{list-style:none; margin:18px 0 0; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:10px}
+.unitmap li{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 14px; display:grid; gap:3px; align-content:start; font-size:14px; line-height:1.55}
+.unitmap li.ready{border-color:var(--accent)}
+.unitmap .un{font:600 11px var(--f-mono); color:var(--ink-3)}
+.unitmap .nm{font-weight:700; font-size:15px}
+.unitmap .mt{color:var(--ink-2); font-size:13px}
+.unitmap .lk{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px}
+.unitmap .lk a{font-size:12.5px; text-decoration:none; border-radius:999px; padding:1px 10px; background:var(--accent-bg)}
+.unitmap .lk a.go{background:var(--accent); color:var(--accent-ink); font-weight:700}
+.unitmap .lk a:not(.go){color:var(--ink-2); background:var(--surface-2)}
+
+/* ---------- 演示卡片 ---------- */
+.lab{margin:26px 0; border:1px solid var(--line-2); border-radius:14px; background:var(--surface); padding:16px 18px 18px; display:grid; gap:14px; container-type:inline-size; max-width:none; transition:border-color .2s, box-shadow .2s}
+.lab.is-active{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-bg)}
+.lab > *{min-width:0}
+.lab-top{display:grid; gap:4px}
+.lab-kind{font:600 11.5px var(--f-mono); color:var(--accent); letter-spacing:.06em}
+.lab-title{font-size:18px; margin:0; line-height:1.4}
+.lab-intro{margin:0; color:var(--ink-2); font-size:14.5px; line-height:1.7}
+.narr{display:grid; gap:2px; min-height:96px; background:var(--panel); border-radius:10px; padding:10px 14px}
+.narr-k{font:600 11.5px var(--f-mono); color:var(--ink-3)}
+.narr-t{font-size:16px; font-weight:700; margin:0; line-height:1.5}
+.narr-p{margin:0; color:var(--ink-2); font-size:14.5px; line-height:1.7}
+.narr-p b{color:var(--ink)}
+.ctrl{display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between}
+.btns{display:flex; flex-wrap:wrap; gap:8px}
+.btn{border:1px solid var(--line-2); background:var(--surface); border-radius:8px; padding:5px 12px; cursor:pointer; font-size:14px; white-space:nowrap; line-height:1.6}
+.btn.sm{font-size:13px; padding:2px 10px}
+.btn:hover:not(:disabled){border-color:var(--accent); color:var(--accent)}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:700}
+.btn.primary:hover:not(:disabled){filter:brightness(1.07); color:var(--accent-ink)}
+.btn.ghost{border-color:transparent; color:var(--ink-3)}
+.btn:disabled{opacity:.4; cursor:not-allowed}
+.seg{display:inline-flex; flex-wrap:wrap; border:1px solid var(--line-2); border-radius:9px; padding:2px; gap:2px; background:var(--surface-2)}
+.seg button{border:0; background:transparent; border-radius:7px; padding:4px 11px; cursor:pointer; font-size:13.5px; color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--surface); color:var(--ink); font-weight:700; box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.dots{list-style:none; margin:0; padding:0; display:flex; gap:4px; flex-wrap:wrap}
+.dots button{width:24px; height:6px; border-radius:3px; border:0; background:var(--line); cursor:pointer; padding:0}
+.dots button.on{background:var(--accent)} .dots button.past{background:var(--line-2)}
+.bench{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.25fr); gap:14px; align-items:start}
+.bench.stack{grid-template-columns:minmax(0, 1fr)}
+@container (max-width: 720px){ .bench{grid-template-columns:minmax(0, 1fr)} }
+@media (max-width: 640px){ .bench{grid-template-columns:minmax(0, 1fr)} }
+.code-col{display:grid; gap:10px; min-width:0}
+.stage{min-width:0}
+.code{background:var(--code-bg); border:1px solid var(--line); border-radius:10px; overflow:hidden}
+.code-h{font:600 11.5px var(--f-mono); color:var(--ink-3); padding:6px 12px; border-bottom:1px solid var(--line); background:var(--surface-2)}
+.code-b{position:relative; max-height:360px; overflow:auto; padding:6px 0; font:12.5px/1.75 var(--f-mono)}
+.ln{display:flex; align-items:center; white-space:pre; min-width:100%; width:max-content; padding-right:10px}
+.ln .no{flex:none; width:2.8em; color:var(--ink-3); text-align:right; padding-right:12px; opacity:.6; user-select:none; font-size:11px}
+.ln .tx{flex:1 0 auto}
+.ln.hl{background:var(--accent-bg); background:color-mix(in srgb, var(--c) 15%, transparent); box-shadow:inset 3px 0 0 var(--c)}
+.ln .who{position:sticky; right:6px; flex:none; font:600 10.5px var(--f-mono); color:var(--on-th); background:var(--c); border-radius:4px; padding:0 5px; margin-left:12px}
+.box{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; min-width:0}
+.box-h{font-size:13px; font-weight:700; color:var(--ink-2); margin-bottom:6px}
+.rk{font:600 11.5px var(--f-mono); color:var(--ink-3); letter-spacing:.02em}
+.none{color:var(--ink-3); font-size:13px}
+.note{color:var(--ink-3); font-size:12.5px}
+.th{display:inline-flex; align-items:center; justify-content:center; min-width:30px; height:24px; padding:0 7px; border-radius:6px; background:var(--c); color:var(--on-th); font:600 12px var(--f-mono); vertical-align:middle; white-space:nowrap}
+.pill{display:inline-block; font:600 11px var(--f-mono); padding:1px 8px; border-radius:999px; white-space:nowrap; line-height:1.7}
+.pill.ok{color:var(--ok); background:var(--ok-bg)} .pill.bad{color:var(--bad); background:var(--bad-bg)}
+.pill.wait{color:var(--wait); background:var(--wait-bg)} .pill.idle{color:var(--idle); background:var(--idle-bg)}
+.tag{font:600 10.5px var(--f-mono); color:var(--accent); border:1px solid var(--accent); border-radius:4px; padding:0 5px; white-space:nowrap}
+.chip{display:inline-flex; align-items:center; font:600 12px var(--f-mono); border:1px solid var(--line-2); background:var(--surface); border-radius:6px; padding:1px 8px}
+.chip.warn{border-color:var(--wait); color:var(--wait); background:var(--wait-bg)}
+.chg{animation:flash 1.3s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)} 100%{box-shadow:0 0 0 0 transparent}}
+.grid2{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px}
+.stack-v{display:grid; gap:10px}
+@container (max-width: 520px){ .grid2{grid-template-columns:minmax(0, 1fr)} }
+.verdict{border-radius:10px; padding:10px 14px; font-size:14.5px; line-height:1.7}
+.verdict.bad{background:var(--bad-bg); border:1px solid var(--bad)}
+.verdict.ok{background:var(--ok-bg); border:1px solid var(--ok)}
+.big{font:700 28px/1.2 var(--f-mono); color:var(--accent)}
+.kv{display:grid; gap:2px}
+.thr{width:100%; border-collapse:collapse; font-size:13px; line-height:1.5}
+.thr th{font:600 11px var(--f-mono); color:var(--ink-3); text-align:left; padding:4px 6px; border-bottom:1px solid var(--line)}
+.thr td{padding:6px; border-bottom:1px solid var(--line); vertical-align:top}
+.thr tr:last-child td{border-bottom:0}
+.tn{font-size:12px; color:var(--ink-3)}
+.js{font-size:11.5px; word-break:break-all}
+.tbl-wrap{overflow-x:auto}
+
+/* Monitor 区域 */
+.zones{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px}
+@container (max-width: 460px){ .zones{grid-template-columns:minmax(0, 1fr)} }
+.zone{border:1px solid var(--line-2); border-radius:9px; padding:7px 9px; display:grid; gap:5px; align-content:start; min-height:88px; background:var(--surface)}
+.zone .zk{font:700 12.5px var(--f-mono)}
+.zone .zs{font-size:11.5px; color:var(--ink-3)}
+.zone .toks{display:flex; gap:5px; flex-wrap:wrap; min-height:26px; align-items:center}
+.z-owner{border-color:var(--ok); background:var(--ok-bg)} .z-entry{border-color:var(--bad); background:var(--bad-bg)} .z-wait{border-color:var(--wait); background:var(--wait-bg)}
+
+/* Mark Word 条 / 比特 */
+.mw-head{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:6px}
+.mw-head code{font-size:13px; font-weight:600}
+.strip-wrap{overflow-x:auto}
+.strip{display:flex; gap:2px; min-width:280px}
+.seg-b{min-width:0; background:var(--surface-2); border-radius:5px; padding:3px 5px; display:grid; overflow:hidden}
+.seg-b .sv{font:600 11.5px var(--f-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.seg-b .sl{font-size:10.5px; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.seg-b.key{background:var(--accent-bg); outline:1.5px solid var(--accent); min-width:56px; flex-shrink:0}
+.seg-b.key .sv{color:var(--accent); font-size:13px}
+.bits{display:grid; gap:4px}
+.bitrow{display:grid; grid-template-columns:repeat(32, minmax(0, 1fr)); gap:2px}
+.bit{font:600 clamp(9px, 1.6cqi, 12px)/1 var(--f-mono); text-align:center; padding:5px 0; border-radius:3px; background:var(--surface-2); color:var(--ink-2)}
+.bitaxis{display:flex; justify-content:space-between; font:10.5px var(--f-mono); color:var(--ink-3)}
+.k-u{opacity:.55}
+.k-h{background:color-mix(in srgb, var(--t3) 22%, transparent); color:var(--ink)}
+.k-a{background:color-mix(in srgb, var(--t4) 22%, transparent); color:var(--ink)}
+.k-b{background:color-mix(in srgb, var(--t2) 22%, transparent); color:var(--ink)}
+.k-l{background:var(--accent); color:var(--accent-ink)}
+.k-t,.k-p{background:color-mix(in srgb, var(--t1) 20%, transparent); color:var(--ink)}
+.k-e{background:color-mix(in srgb, var(--t2) 14%, transparent); color:var(--ink)}
+.seglegend{list-style:none; margin:8px 0 0; padding:0; display:grid; gap:3px; font-size:13px}
+.seglegend li{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.seglegend .sw{width:12px; height:12px; border-radius:3px; flex:none}
+.seglegend code{font-size:12.5px}
+
+/* 对象布局 */
+.bytemap{display:grid; gap:4px}
+.brow{display:grid; grid-template-columns:3.2em minmax(0, 1fr); gap:6px; align-items:stretch}
+.boff{font:600 11px var(--f-mono); color:var(--ink-3); align-self:center; text-align:right}
+.bcells{display:grid; grid-template-columns:repeat(8, minmax(0, 1fr)); gap:3px}
+.bpart{border-radius:6px; padding:5px 6px; font-size:12px; line-height:1.35; color:var(--ink); border:1.5px solid var(--kc); background:color-mix(in srgb, var(--kc) 16%, transparent); min-width:0; overflow:hidden}
+.bpart b{display:block; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.bpart span{font:11px var(--f-mono); color:var(--ink-3)}
+.bpart.pad{border-style:dashed; background:repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--kc) 22%, transparent) 5px 7px)}
+.total{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; margin-top:8px}
+.total b{font:700 22px var(--f-mono); color:var(--accent)}
+
+/* 状态机 */
+.sm-svg{width:100%; height:auto; display:block}
+.sm-node rect{fill:var(--surface); stroke:var(--line-2); stroke-width:1.25}
+.sm-node text{fill:var(--ink); font:600 13px var(--f-mono)}
+.sm-node.cur rect{fill:var(--accent-bg); stroke:var(--accent); stroke-width:2.5}
+.sm-node.cur text{fill:var(--accent)}
+.sm-edge{fill:none; stroke:var(--line-2); stroke-width:1.5}
+.sm-edge.on{stroke:var(--accent); stroke-width:3}
+.sm-arrow{fill:var(--line-2)} .sm-arrow-on{fill:var(--accent)}
+.sm-lbl{fill:var(--ink-3); font:11px var(--f-body)}
+.sm-acts{display:flex; flex-wrap:wrap; gap:8px}
+.sm-hist{font:12.5px var(--f-mono); color:var(--ink-3); word-break:break-all}
+
+/* happens-before */
+.hb-svg{width:100%; height:auto; display:block}
+.hb-box rect{fill:var(--surface); stroke:var(--line-2); stroke-width:1.25}
+.hb-box.on rect{stroke:var(--accent); stroke-width:2}
+.hb-box text{fill:var(--ink); font:600 13px var(--f-mono)}
+.hb-box .sub{fill:var(--ink-3); font:11.5px var(--f-body)}
+.hb-col{fill:var(--ink-3); font:600 12px var(--f-body)}
+.hb-e{fill:none; stroke-width:2.2}
+.hb-e.ok{stroke:var(--accent)}
+.hb-e.der{stroke:var(--ok); stroke-dasharray:6 5}
+.hb-e.no{stroke:var(--bad); stroke-dasharray:4 4}
+.hb-l{font:11.5px var(--f-body)}
+.hb-l.ok{fill:var(--accent)} .hb-l.der{fill:var(--ok)} .hb-l.no{fill:var(--bad)}
+.hb-m-ok{fill:var(--accent)} .hb-m-der{fill:var(--ok)}
+
+/* 进度条 */
+.bar{height:7px; border-radius:4px; background:var(--surface-2); overflow:hidden}
+.bar i{display:block; height:100%; background:var(--accent); transition:width .4s}
+.lane{display:grid; gap:6px}
+.lane-h{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.reg{font:600 13px var(--f-mono)}
+
+/* 竞态 */
+.bc{list-style:none; margin:0; padding:0; display:grid; gap:2px; font:12.5px/1.6 var(--f-mono)}
+.bc li{display:grid; grid-template-columns:16px minmax(0, 1fr) auto; gap:6px; padding:3px 8px; border-radius:6px; color:var(--ink-2)}
+.bc li.done{color:var(--ink-3); text-decoration:line-through; text-decoration-color:var(--line-2)}
+.bc li.cur{background:var(--accent-bg); color:var(--ink); font-weight:600}
+.bc li .pc{color:var(--accent)}
+.bc li .hint2{font-family:var(--f-body); font-size:12px; color:var(--ink-3)}
+.opstack{display:flex; gap:10px; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:5px 10px}
+.log{list-style:none; margin:0; padding:0; display:grid; gap:5px; font-size:13px; color:var(--ink-2); max-height:220px; overflow:auto}
+.log li{display:grid; grid-template-columns:auto minmax(0, 1fr); gap:8px}
+.log .tm{font:600 11px var(--f-mono); color:var(--ink-3); padding-top:2px}
+
+/* 可见性 */
+.core-c{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; display:grid; gap:8px}
+.core-h{display:flex; gap:8px; align-items:center; font-weight:700; font-size:14px}
+.rowv{display:grid; gap:3px}
+.slots{display:flex; flex-wrap:wrap; gap:6px; min-height:28px; align-items:center; border:1px dashed var(--line-2); border-radius:8px; padding:3px 6px}
+.cline{display:flex; gap:10px; align-items:center; border:1px solid var(--line-2); border-radius:8px; padding:4px 8px; flex-wrap:wrap}
+.cline code{font-size:13.5px; font-weight:600}
+.mesi{font:700 12.5px var(--f-mono); width:24px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; border:1px solid currentColor}
+.m-M{color:var(--accent)} .m-E{color:var(--t3)} .m-S{color:var(--ok)} .m-I{color:var(--bad)}
+.bus{display:grid; gap:4px; border-top:2px solid var(--line-2); border-bottom:2px solid var(--line-2); padding:6px 4px}
+.bus::before{content:"总线 · 一致性消息"; font:600 11px var(--f-mono); color:var(--ink-3)}
+.msg{font:12.5px var(--f-mono)}
+.memrow{display:flex; gap:12px; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 12px}
+.memrow code{font-size:14px; font-weight:700}
+.bview{display:flex; gap:10px; align-items:center; border-radius:10px; padding:8px 12px; font-size:14px; border:1px solid var(--line); background:var(--surface)}
+.bview.exit{background:var(--ok-bg); border-color:var(--ok)} .bview.forever{background:var(--bad-bg); border-color:var(--bad)}
+
+/* 锁升级阶梯 */
+.ladder{display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px}
+@container (max-width: 520px){ .ladder{grid-template-columns:repeat(2, minmax(0, 1fr))} }
+.rung{border:1px solid var(--line-2); border-radius:9px; padding:7px 9px; background:var(--surface); display:grid; gap:2px; opacity:.6}
+.rung b{font-size:13.5px}
+.rung span{font-size:11.5px; color:var(--ink-3); line-height:1.45}
+.rung.on{opacity:1; border-color:var(--accent); background:var(--accent-bg); box-shadow:0 0 0 1px var(--accent)}
+.rung.past{opacity:.85}
+
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important; scroll-behavior:auto !important} }
+</style>
+</head>
+<body>
+
+
+<div class="app">
+  <aside class="side" id="side">
+    <div class="side-top">
+      <a class="brand" href="#home">JUC 交互学习手册<small>试点 · 单元一到三</small></a>
+      <button type="button" class="btn sm toc-btn" id="toc-btn" aria-expanded="false" aria-controls="toc">目录</button>
+    </div>
+    <nav class="toc" id="toc" aria-label="目录"></nav>
+    <div class="side-foot">
+      <div>完整文字版：<a href="https://github.com/erha1499/learn-juc/blob/main/content/handbook.md" target="_blank" rel="noopener">handbook.md</a></div>
+      <div>单元五到七的演示：<a href="lab/index.html">可视化实验室</a></div>
+      <div>源码与示例代码：<a href="https://github.com/erha1499/learn-juc" target="_blank" rel="noopener">GitHub</a></div>
+    </div>
+  </aside>
+  <main class="main" id="main">
+<article class="view" id="view-home" data-view="home" hidden><!--HOME-HERO--><div class="prose"><p>并发问题的根源只有三个：<strong>可见性、有序性、原子性</strong>。JUC 里几乎所有东西，都是在用不同的代价解决这三个问题。按这条主线学，比按题背更容易记住。</p>
+<p>整条主线可以这样理解：</p>
+<ol><li><strong>硬件层</strong>：CPU 有缓存、会重排序、线程会被切换 → 产生可见性、有序性、原子性问题。</li><li><strong>语言层（JMM）</strong>：Java 用 happens-before 规则给程序员承诺，用 volatile、synchronized、final 兑现。</li><li><strong>锁的两种路线</strong>：<ul><li>悲观路线：synchronized（JVM 实现，靠对象头 + monitor）。</li><li>乐观路线：CAS（CPU 指令 cmpxchg），是原子类和 AQS 的地基。</li></ul></li><li><strong>AQS</strong>：CAS + volatile state + 等待队列 + park/unpark，搭出一个通用的“排队取锁”框架；ReentrantLock、Semaphore、CountDownLatch 都只是在它上面改了“state 怎么算”。</li><li><strong>工程层</strong>：线程池管理线程，CompletableFuture 编排异步任务，ThreadLocal 隔离数据，并发容器替代手动加锁。</li></ol>
+<h2 id="home-3">单元顺序与面试权重</h2>
+<div class="tbl"><table><thead><tr><th>单元</th><th>一句话核心</th><th>依赖前置</th><th>面试权重</th></tr></thead><tbody><tr><td>一 线程基础</td><td>线程是什么、在哪里等锁（对象头与 Monitor）、怎么停</td><td>无</td><td>高（开场题）</td></tr><tr><td>二 JMM 与 volatile</td><td>三大问题从哪来，volatile 解决了哪两个</td><td>一</td><td>高</td></tr><tr><td>三 synchronized</td><td>对象头 + monitor，锁升级为了少进内核</td><td>二</td><td>极高</td></tr><tr><td>四 CAS 与原子类</td><td>无锁的乐观并发，AQS 的地基</td><td>二</td><td>高</td></tr><tr><td>五 AQS</td><td>state + CLH 队列 + park/unpark</td><td>三、四</td><td>极高</td></tr><tr><td>六 AQS 同步器</td><td>ReentrantLock、Semaphore 等只是改了 state 的含义</td><td>五</td><td>极高</td></tr><tr><td>七 线程池</td><td>7 个参数 + 一张执行流程图</td><td>一、六</td><td>极高</td></tr><tr><td>八 CompletableFuture</td><td>Future 的缺点与异步编排</td><td>七</td><td>中高</td></tr><tr><td>九 ThreadLocal</td><td>Thread 里挂一张 Map，弱引用与泄漏</td><td>一</td><td>高</td></tr><tr><td>十 并发容器与死锁</td><td>CHM、COW、阻塞队列，死锁四条件</td><td>四、六</td><td>中</td></tr><tr><td>十一 手写题</td><td>用 synchronized / Lock / Semaphore 做线程协作</td><td>三、六</td><td>高（笔试/手撕）</td></tr></tbody></table></div>
+<h2 id="home-5">怎么用这份文档</h2>
+<p>每个单元都按同一个顺序组织，建议照这个节奏学：</p>
+<ol><li><strong>看学习目标</strong>：单元开头标出了「必会 / 加分 / 了解」三档。时间紧就只啃「必会」，面试想拉开差距再看「加分」。</li><li><strong>先看现象，再学原理</strong>：能用代码复现的问题（死循环停不下来、票卖超了），先给出可运行的代码和真实运行结果，再解释为什么。网页版在关键处嵌了标着「动手」的演示，可以一步步执行。</li><li><strong>读原理</strong>：每节按「为什么需要 → 底层怎么实现」展开，图和源码只保留理解所需的部分。标题里带「底层预备」的小节（1.5 对象头与 Monitor、2.2 CPU 缓存）是后文反复引用的地基，第一次读不要跳过。</li><li><strong>背「面试这样说」</strong>：单元末尾给出 30 秒左右的口述回答，展开后的回答可以直接说出口。它是原理的压缩版，先读懂原理再背，才不会被追问问倒。</li><li><strong>做自测</strong>：合上文档自己口述一遍，答不上来再回看正文。</li><li><strong>动手</strong>：手写题（单元十一）建议在 IDE 里亲手敲一遍并跑通。手撕时最容易在 <code>while</code> 还是 <code>if</code>、<code>notify</code> 还是 <code>notifyAll</code> 上出错。</li></ol>
+<p>版本说明：以 JDK 8 为基准，涉及 JDK 15（偏向锁废弃）、JDK 17、JDK 21（虚拟线程）的变化会单独标出。文中所有可运行的示例代码都已在 JDK 17 上实际跑过。</p>
+<p>内容依据：<a href="https://xiaolincoding.com/interview/juc.html" target="_blank" rel="noopener">小林coding · Java 并发面试题</a>，<a href="https://javaguide.cn/java/concurrent/java-concurrent-questions-01.html" target="_blank" rel="noopener">JavaGuide 并发常见面试题（上）</a>、<a href="https://javaguide.cn/java/concurrent/java-concurrent-questions-02.html" target="_blank" rel="noopener">（中）</a>、<a href="https://javaguide.cn/java/concurrent/java-concurrent-questions-03.html" target="_blank" rel="noopener">（下）</a>。</p></div></article>
+<article class="view" id="view-u1" data-view="u1" hidden><div class="prose"><header class="u-head"><div class="u-no">单元一</div><h1>线程基础</h1><p class="u-sub">线程是什么、怎么跑、怎么停</p><p class="motto">Java 线程就是内核线程；线程之间的排队、等待和唤醒，都发生在对象的 monitor 上。</p></header>
+<p class="core">本单元的核心有两条。一是 Java 线程就是操作系统线程（1:1），创建、切换、阻塞都有内核成本，这是后面“锁优化”和“线程池”存在的理由。二是线程之间的排队、等待和唤醒，都发生在对象关联的 monitor 上（1.5 节）。看懂这个结构，线程状态和 wait/notify 就不用死记。</p>
+<div class="goals"><div class="g-h">学习目标</div><div class="g-row"><span class="g-tag g-must">必会</span><span>1.4 创建线程与 start/run、1.5 对象的三个组成部分与 Monitor 的三个区域、1.6 六种状态及转换、1.7 sleep 与 wait、1.9 停止线程</span></div><div class="g-row"><span class="g-tag g-plus">加分</span><span>1.2 虚拟线程、1.3 用户态与内核态、1.5 用 jstack 看线程卡在 monitor 的哪里、1.9 interrupt 的底层、“等 ReentrantLock 的线程是 WAITING”</span></div><div class="g-row"><span class="g-tag g-know">了解</span><span>1.3 上下文切换、1.5 Mark Word 的位布局、1.10 守护线程与 yield</span></div></div>
+<section id="u1-1"><h2>1.1 进程与线程</h2>
+<ul><li><strong>进程</strong>是资源分配的单位：启动一个 <code>main</code> 就是启动一个 JVM 进程。</li><li><strong>线程</strong>是 CPU 调度的单位：同一进程的线程<strong>共享堆和方法区</strong>，各自<strong>私有程序计数器、虚拟机栈、本地方法栈</strong>。</li></ul>
+<p>为什么这三个要私有？把它们想成“线程的存档”：</p>
+<ul><li>程序计数器记录“我执行到哪条字节码了”。线程被切走再切回来，靠它续上。共享的话大家会互相覆盖。</li><li>虚拟机栈存局部变量和方法调用链。局部变量天然线程安全，就是因为栈私有。</li><li>堆共享，所以对象和成员变量才会有并发问题。</li></ul>
+</section>
+<section id="u1-2"><h2>1.2 Java 线程和操作系统线程</h2>
+<ul><li>JDK 1.2 之前是“绿色线程”：JVM 自己模拟调度，用不了多核。</li><li>之后是<strong>平台线程，一个 Java 线程对应一个内核线程（1:1）</strong>，调度交给 OS。所以创建一个线程要分配栈（默认 1MB）、要系统调用，成本不低。</li><li>JDK 21 的<strong>虚拟线程</strong>是 M:N：大量虚拟线程挂在少量“载体线程”（ForkJoinPool）上，遇到 IO 阻塞时从载体上卸下，不占内核线程。适合 IO 密集，不适合 CPU 密集。早期版本在 <code>synchronized</code> 块里阻塞会“钉住（pinning）”载体线程，JDK 24 起已修复。</li><li>与 Go 协程对比：goroutine 也是 M:N，初始栈只有几 KB 且可伸缩，由 Go 运行时调度；传统 Java 线程由 OS 调度。虚拟线程就是 Java 对这一点的补课。</li></ul>
+</section>
+<section id="u1-3"><h2>1.3 并发、并行与“为什么用多线程”</h2>
+<ul><li><strong>并发</strong>：同一时间段内多个任务交替执行；<strong>并行</strong>：同一时刻多个任务在多个核上同时执行。</li><li>多线程的价值：多核并行计算；一个线程等 IO 时，另一个线程用 CPU。</li><li><strong>单核支持多线程吗？</strong> 支持，靠时间片轮转（抢占式调度）。</li><li><strong>单核上多线程一定更快吗？</strong> 不一定。CPU 密集型任务在单核上开多线程只会增加上下文切换开销；IO 密集型才受益。这个结论直接影响单元七的线程池大小。</li><li><strong>上下文切换</strong>：时间片用完、主动 sleep/wait、等锁、等 IO 时发生。要保存和恢复寄存器、程序计数器，并在用户态和内核态之间来回。</li><li>多线程带来的问题：线程安全（结果错）、死锁、上下文切换开销、内存泄漏（如 ThreadLocal）。</li></ul>
+<p>类比记忆：一个人轮流做饭、打扫、洗衣服，是<strong>并发</strong>（同一段时间应对多件事）；三个人各干一件，是<strong>并行</strong>（同一时刻都在做）。两个人抢一口锅时就产生了竞争，这就是后面要学“锁”的原因。</p>
+<p><strong>什么叫“进内核”</strong>：CPU 运行代码时分两种权限。普通程序（包括 JVM 和你的 Java 代码）跑在<strong>用户态</strong>，不能直接调度线程；操作系统内核跑在<strong>内核态</strong>，线程的创建、挂起、唤醒都归它管。所以一个 Java 线程要睡下或被叫醒，必须通过系统调用切到内核态，由调度器处理完再切回来。</p>
+<p>这一来一回要保存和恢复寄存器、 切换栈，通常是微秒级；而一次 CAS 或一次加法是纳秒级，差了上千倍。后文说的“重量级”“进内核”“挂起开销”，指的都是这笔账。<strong>锁优化的目标，就是尽量在用户态把事情办完，不让线程真的睡下去</strong>。</p>
+</section>
+<section id="u1-4"><h2>1.4 创建线程：写法很多，本质只有一种</h2>
+<pre class="codeblock" data-lang="java"><code>// 1. 继承 Thread
+class MyThread extends Thread { public void run() { System.out.println("hi"); } }
+new MyThread().start();
+
+// 2. 实现 Runnable（任务与线程解耦，推荐）
+new Thread(() -&gt; System.out.println("hi")).start();
+
+// 3. Callable + FutureTask（有返回值、能抛受检异常）
+FutureTask&lt;Integer&gt; task = new FutureTask&lt;&gt;(() -&gt; 1 + 1);
+new Thread(task).start();
+Integer r = task.get(); // 阻塞等结果
+
+// 4. 线程池（工程里的正确做法，见单元七）
+executor.submit(() -&gt; 1 + 1);</code></pre>
+<p>面试加分说法：上面都只是“定义任务”的方式，<strong>真正创建线程的只有 <code>new Thread().start()</code></strong>。FutureTask 本身就是一个 Runnable，线程池内部也是 new Thread。</p>
+<p><strong>start() 和 run() 的区别</strong>：<code>start()</code> 调用 native 的 <code>start0()</code>，让 JVM 创建内核线程，该线程就绪后再回调 <code>run()</code>。直接调 <code>run()</code> 只是在当前线程里执行了一个普通方法。同一个线程 <code>start()</code> 两次会抛 <code>IllegalThreadStateException</code>（threadStatus 不为 0）。</p>
+</section>
+<section id="u1-5"><h2>1.5 底层预备：线程在等什么——对象头与 Monitor</h2>
+<p>接下来的线程状态、wait/notify，以及单元三的 synchronized，会反复用到 monitor、EntryList、WaitSet 这几个词。它们不是比喻，而是 JVM 里真实存在的数据结构。这一节先讲清两件事：一个对象在内存里长什么样，线程在哪里排队、在哪里等待。</p>
+<p><strong>① 一个 Java 对象在堆里分三块</strong></p>
+<div class="tbl"><table><thead><tr><th>组成部分</th><th>大小（64 位 JVM，默认开启压缩指针）</th><th>存什么、有什么用</th></tr></thead><tbody><tr><td>对象头 · Mark Word</td><td>8 字节</td><td>对象的运行时状态：hashCode、GC 分代年龄、<strong>锁状态</strong>。synchronized 的锁就记在这里</td></tr><tr><td>对象头 · 类型指针</td><td>4 字节</td><td>指向方法区（元空间）里这个类的元数据。<code>getClass()</code>、<code>instanceof</code>、调用重写的方法，都靠它找到对象属于哪个类</td></tr><tr><td>对象头 · 数组长度</td><td>4 字节，只有数组才有</td><td><code>arr.length</code> 读的就是这里</td></tr><tr><td>实例数据</td><td>各字段大小之和</td><td>字段的值，包括从父类继承的字段</td></tr><tr><td>对齐填充</td><td>0~7 字节</td><td>HotSpot 要求对象大小是 8 的倍数，不够就补齐</td></tr></tbody></table></div>
+<p>按这张表算：<code>new Object()</code> 的对象头是 8 + 4 = 12 字节，没有字段，补 4 字节凑成 <strong>16 字节</strong>；<code>new int[3]</code> 是 12 + 4（长度）+ 3 × 4 = 28 字节，补齐到 <strong>32 字节</strong>。在 JDK 17 上用 <code>Instrumentation.getObjectSize()</code> 实测，结果正是 16 和 32。</p>
+<div class="lab-mount" data-lab="objlayout"></div>
+<p><strong>② Mark Word：对象的“状态栏”</strong></p>
+<p>Mark Word 只有 64 位，却要存好几样东西，所以它是<strong>复用</strong>的：JVM 先看最低 2 位的锁标志位，再决定怎么解读其余 62 位。没加锁时，它从高位到低位的布局是：</p>
+<div class="tbl"><table><thead><tr><th>未使用</th><th>hashCode</th><th>未使用</th><th>GC 分代年龄</th><th>是否偏向</th><th>锁标志位</th></tr></thead><tbody><tr><td>25 位</td><td>31 位</td><td>1 位</td><td>4 位</td><td>1 位（0）</td><td>2 位（01）</td></tr></tbody></table></div>
+<p>两个顺手能记住的细节：</p>
+<ul><li>GC 分代年龄只有 4 位，最大是 15。这就是 <code>-XX:MaxTenuringThreshold</code> 最多只能设成 15 的原因。</li><li>hashCode 不是对象一创建就有的。第一次调用 <code>hashCode()</code> 时才算出来，写进这 31 位。</li></ul>
+<p>加锁以后，这 64 位会被改写成别的内容（比如一个指针），锁标志位也跟着变：01 无锁，00 轻量级锁，10 重量级锁。所以<strong>在对象这一侧，“锁”就是 Mark Word 里的几个比特</strong>，任何对象都能当锁用。每种状态具体存什么，3.3 节会用代码把真实的比特打印出来。</p>
+<p><strong>③ Monitor：管理“谁拿锁、谁排队、谁在等”的结构</strong></p>
+<p>Monitor（管程，也叫监视器）是操作系统课里的经典同步机制：一把互斥锁，加上排队和等待用的队列，保证同一时刻只有一个线程在里面执行。Java 把它和对象绑在了一起：<code>synchronized(obj)</code> 就是进入 obj 的 monitor，<code>obj.wait()</code> 和 <code>obj.notify()</code> 就是在这个 monitor 的等待区里等和叫人。</p>
+<p>HotSpot 用一个 C++ 对象 <code>ObjectMonitor</code> 实现 monitor。有三点最容易误解：</p>
+<ul><li><strong>它不在 Java 对象里</strong>，是 JVM 另外分配的一块内存。对象通过 Mark Word 里的指针找到它，这时锁标志位是 10。</li><li><strong>不是每个对象一出生就有 monitor</strong>。出现锁竞争，或者在锁内调用 <code>wait()</code> 时，JVM 才给对象分配一个，这叫“锁膨胀”。没有竞争的 synchronized 根本用不到它（单元三的锁升级）。</li><li><strong>它内部分三个区域</strong>，线程待在哪个区域，决定了它在 Java 里是什么状态。</li></ul>
+<p>用一间诊室来类比这三个区域：</p>
+<div class="tbl"><table><thead><tr><th>区域</th><th>源码字段</th><th>诊室类比</th><th>线程状态</th></tr></thead><tbody><tr><td>Owner</td><td><code>_owner</code></td><td>正在诊室里看病的人，同一时刻最多一个</td><td>持有锁，通常是 RUNNABLE</td></tr><tr><td>EntryList</td><td><code>_EntryList</code>、<code>_cxq</code></td><td>门口排队、等着进诊室的人</td><td>BLOCKED</td></tr><tr><td>WaitSet</td><td><code>_WaitSet</code></td><td>看到一半发现化验结果没出来，主动出门去休息室等叫号的人</td><td>WAITING 或 TIMED_WAITING</td></tr></tbody></table></div>
+<p>线程在三个区域间怎么流转，可以在下面的演示里一步步看。最关键的是最后一步：<strong>叫号（notify）只是把人从休息室叫回门口排队，不是直接请进诊室</strong>。</p>
+<div class="lab-mount" data-lab="monitordemo"></div>
+<p><strong>跑一下看看</strong>：下面的程序让三个线程分别待在三个区域里，再打印它们的状态。</p>
+<pre class="codeblock" data-lang="java"><code>public class MonitorStateDemo {
+    static final Object lock = new Object();
+
+    public static void main(String[] args) throws Exception {
+        Thread waiter = new Thread(() -&gt; {
+            synchronized (lock) {
+                try { lock.wait(); } catch (InterruptedException ignored) { }  // 进 WaitSet，并释放锁
+                System.out.println("waiter 被唤醒并重新拿到了锁");
+            }
+        }, "waiter");
+
+        Thread owner = new Thread(() -&gt; {
+            synchronized (lock) {
+                sleep(3000);        // 拿着锁睡觉：sleep 不释放锁
+                lock.notify();      // 把 waiter 从 WaitSet 挪到 EntryList
+                sleep(3000);        // 仍然拿着锁
+            }
+        }, "owner");
+
+        Thread blocked = new Thread(() -&gt; {
+            synchronized (lock) { }  // 抢不到锁，进 EntryList
+        }, "blocked");
+
+        waiter.start();  Thread.sleep(100);
+        owner.start();   Thread.sleep(100);
+        blocked.start(); Thread.sleep(300);
+        System.out.println("阶段一  owner=" + owner.getState()
+                + "  blocked=" + blocked.getState() + "  waiter=" + waiter.getState());
+
+        Thread.sleep(3000);  // 此时 owner 已经 notify，但还没释放锁
+        System.out.println("阶段二  owner=" + owner.getState()
+                + "  blocked=" + blocked.getState() + "  waiter=" + waiter.getState());
+
+        owner.join(); blocked.join(); waiter.join();
+    }
+
+    static void sleep(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException ignored) { }
+    }
+}</code></pre>
+<p>JDK 17 实测输出：</p>
+<pre class="codeblock" data-lang="text"><code>阶段一  owner=TIMED_WAITING  blocked=BLOCKED  waiter=WAITING
+阶段二  owner=TIMED_WAITING  blocked=BLOCKED  waiter=BLOCKED
+waiter 被唤醒并重新拿到了锁</code></pre>
+<ul><li>阶段一：owner 拿着锁在 sleep，状态是 TIMED_WAITING，但它仍然是 Owner，因为 <strong>sleep 不释放锁</strong>。blocked 在 EntryList，waiter 在 WaitSet。</li><li>阶段二：owner 已经 notify，但还没退出同步块。waiter 从 WaitSet 被挪到了 EntryList，状态从 WAITING 变成了 <strong>BLOCKED</strong>，还要等 owner 释放锁后再去抢。</li></ul>
+<p>程序运行时用 <code>jstack &lt;进程号&gt;</code> 看线程栈，能直接看到每个线程卡在 monitor 的哪个区域（阶段一，节选）：</p>
+<pre class="codeblock" data-lang="text"><code>"waiter" ... in Object.wait()
+   java.lang.Thread.State: WAITING (on object monitor)
+    - waiting on &lt;0x0000000697c1c210&gt; (a java.lang.Object)
+
+"owner" ... waiting on condition
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+    - locked &lt;0x0000000697c1c210&gt; (a java.lang.Object)
+
+"blocked" ... waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+    - waiting to lock &lt;0x0000000697c1c210&gt; (a java.lang.Object)</code></pre>
+<div class="tbl"><table><thead><tr><th>jstack 里的字样</th><th>含义</th><th>所在区域</th></tr></thead><tbody><tr><td><code>- locked &lt;地址&gt;</code></td><td>持有这把锁</td><td>Owner</td></tr><tr><td><code>- waiting to lock &lt;地址&gt;</code></td><td>抢锁失败，正在排队</td><td>EntryList</td></tr><tr><td><code>- waiting on &lt;地址&gt;</code></td><td>调用了 wait，在等通知</td><td>WaitSet</td></tr><tr><td><code>- waiting to re-lock in wait() &lt;地址&gt;</code></td><td>已被 notify，正在重新抢锁（阶段二的 waiter）</td><td>EntryList</td></tr></tbody></table></div>
+<p>三个线程后面的地址都是 <code>0x0000000697c1c210</code>，说明它们围着同一个对象的 monitor。线上排查锁问题时，按这个地址把线程归类，就能看出谁拿着锁、谁在排队。注意：jstack 在 waiter 自己的栈帧下也会显示一行 <code>- locked</code>，那只表示它是在这个同步块里调用的 wait，锁其实已经释放了。</p>
+<p><strong>带着这张图，后面几个经典问题都能自己推出来</strong>：</p>
+<ul><li><strong>wait/notify 为什么定义在 Object 上？</strong> 任何对象都可能关联一个 monitor，WaitSet 属于对象的 monitor，而不属于某个线程。</li><li><strong>为什么必须在 synchronized 里调用？</strong> 只有 Owner 才有资格把自己放进 WaitSet，或者从 WaitSet 叫人。不是 Owner 就调用，会抛 <code>IllegalMonitorStateException</code>，字面意思就是“monitor 状态不对”。</li><li><strong>BLOCKED 和 WAITING 有什么区别？</strong> BLOCKED 在门口，锁一空就去抢；WAITING 在休息室，没人叫号就一直等。</li><li><strong>wait 为什么要放在 while 里？</strong> 被叫号后只是回到门口重新排队。等它真正进门时，条件可能已经被先进门的人改掉了，所以要重新检查（1.8 节）。</li></ul>
+</section>
+<section id="u1-6"><h2>1.6 六种状态</h2>
+<p><code>Thread.State</code> 枚举定义了 6 种状态（下面有一个可以点着走的状态机）：</p>
+<ul><li><strong>NEW</strong>：new 了还没 start。</li><li><strong>RUNNABLE</strong>：包含 OS 层面的“就绪”和“运行中”。Java 不区分两者，因为时间片只有几十毫秒，区分没意义。在做阻塞 IO 的线程，Java 里也是 RUNNABLE。</li><li><strong>BLOCKED</strong>：<strong>只在等 <code>synchronized</code> 的 monitor 锁时出现</strong>。</li><li><strong>WAITING</strong>：主动等别人唤醒，无超时：<code>wait()</code>、<code>join()</code>、<code>LockSupport.park()</code>。</li><li><strong>TIMED_WAITING</strong>：带超时的等待：<code>sleep(n)</code>、<code>wait(n)</code>、<code>join(n)</code>、<code>parkNanos</code>。</li><li><strong>TERMINATED</strong>：run 结束或抛出异常。</li></ul>
+<div class="lab-mount" data-lab="statemachine"></div>
+<p><strong>BLOCKED 和 WAITING 的区别</strong>（高频）：BLOCKED 是“被动抢锁失败”，锁一释放就自动去抢；WAITING 是“主动放弃”，必须等其他线程 notify/unpark/中断。</p>
+<p>一个反直觉的点：<strong>等 <code>ReentrantLock</code> 的线程是 WAITING，不是 BLOCKED</strong>。因为 AQS 是用 <code>LockSupport.park()</code> 挂起线程的（见单元五）。用 jstack 看到大量 <code>WAITING (parking)</code> 就是这个原因。</p>
+<p><strong>wait 中的线程怎么回到 RUNNABLE</strong>：被 notify/notifyAll、超时或被中断后，它<strong>先进入 BLOCKED 重新抢 monitor 锁</strong>，抢到了才是 RUNNABLE，并从 <code>wait()</code> 的下一行继续执行。</p>
+</section>
+<section id="u1-7"><h2>1.7 sleep 与 wait</h2>
+<div class="tbl"><table><thead><tr><th>对比项</th><th><code>Thread.sleep()</code></th><th><code>Object.wait()</code></th></tr></thead><tbody><tr><td>所属类</td><td>Thread 的静态方法</td><td>Object 的实例方法</td></tr><tr><td>是否释放锁</td><td><strong>不释放</strong></td><td><strong>释放</strong> monitor 锁</td></tr><tr><td>使用前提</td><td>任意位置</td><td>必须在 <code>synchronized</code> 内，否则抛 <code>IllegalMonitorStateException</code></td></tr><tr><td>唤醒方式</td><td>时间到自动醒</td><td>notify/notifyAll、超时、中断</td></tr><tr><td>用途</td><td>暂停执行</td><td>线程间协作（等条件）</td></tr></tbody></table></div>
+<ul><li><strong>sleep 会释放 CPU 吗？</strong> 会，线程进入 TIMED_WAITING，不参与调度；但它握着的锁不放。</li><li><strong>为什么 wait 定义在 Object 而不是 Thread？</strong> 因为锁属于对象。每个对象都可以关联一个 monitor（1.5 节），wait 要释放的是“这个对象的锁”，并进入“这个对象的等待集合（WaitSet）”。sleep 和锁无关，只影响当前线程，所以在 Thread 上。</li><li><strong>为什么 wait 必须在 synchronized 里？</strong> 机制上，只有 monitor 的 Owner 才能操作 WaitSet（1.5 节），没拿锁就调用会抛异常。设计上，这样规定是为了避免“丢失唤醒”：线程 A 判断条件不满足、还没来得及 wait，线程 B 就改了条件并 notify，A 再 wait 就永远等不到了。“判断条件 + wait”必须是原子的。</li></ul>
+</section>
+<section id="u1-8"><h2>1.8 notify 与 notifyAll</h2>
+<ul><li><code>notify()</code> 从该对象的 WaitSet 中唤醒一个线程，<code>notifyAll()</code> 唤醒全部，被唤醒的线程再竞争锁。</li><li><strong>notify 选哪个？</strong> JVM 规范说是“任意一个”。HotSpot 实现中通常按进入 WaitSet 的顺序唤醒，但代码不能依赖这一点。</li><li>多个线程等不同条件时（如 ABC 轮流打印），用 notify 可能叫醒“错的人”导致全员等待，所以要用 notifyAll，或者换成多个 Condition 精准唤醒。</li><li>被唤醒后条件不一定成立（其他线程可能先抢到锁改了数据，或者发生虚假唤醒），所以<strong>wait 必须放在 while 循环里</strong>：</li></ul>
+<pre class="codeblock" data-lang="java"><code>synchronized (lock) {
+    while (!condition) {   // 不能用 if
+        lock.wait();
+    }
+    // do something
+}</code></pre>
+<p>“必须用 while”背后是 monitor 的一个设计选择。Java 采用的是 <strong>Mesa 风格</strong>：调用 notify 的线程继续执行，被唤醒的线程回到 EntryList，稍后再和别人一起抢锁（1.5 节的图）。它抢到锁之前，别的线程完全可能先进去把条件改掉。另一种 <strong>Hoare 风格</strong>会在 notify 时立刻把锁交给被唤醒者，条件一定成立，可以用 if；但它要多做一次线程切换，实现也更复杂，Java、pthread 等主流实现都没有采用。</p>
+<div class="lab-mount" data-lab="notifydemo"></div>
+</section>
+<section id="u1-9"><h2>1.9 中断与停止线程</h2>
+<p>Java 没有办法强制杀死一个线程，只能“请求”它停下——这就是中断。</p>
+<ul><li><code>t.interrupt()</code>：给 t 设置中断标志。如果 t 正阻塞在 <code>sleep/wait/join</code> 上，会被唤醒并抛 <code>InterruptedException</code>，<strong>同时清除中断标志</strong>。</li><li><code>t.isInterrupted()</code>：只查看标志。<code>Thread.interrupted()</code>：静态方法，查看并<strong>清除</strong>当前线程的标志。</li><li>对 <code>LockSupport.park()</code> 中的线程，interrupt 会让它直接返回，不抛异常，也不清标志。</li></ul>
+<p><strong>interrupt 是怎么让线程抛异常的？</strong> 底层上，interrupt 会设置 OS 线程对象里的中断位，并唤醒（unpark）该线程正在等待的事件。sleep/wait 的实现在被唤醒后会检查中断位，发现已置位就清除它并抛出 <code>InterruptedException</code>。所以它不是“异步异常”，而是被中断的线程自己检查后抛的。</p>
+<p><strong>正确停止线程的写法</strong>：</p>
+<pre class="codeblock" data-lang="java"><code>Thread t = new Thread(() -&gt; {
+    while (!Thread.currentThread().isInterrupted()) {
+        try {
+            doWork();
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            // 异常抛出时标志已被清除，要重新设置，否则循环停不下来
+            Thread.currentThread().interrupt();
+        }
+    }
+});
+t.start();
+t.interrupt();</code></pre>
+<div class="lab-mount" data-lab="interruptdemo"></div>
+<ul><li>也可以用 <code>volatile boolean running</code> 标志位，但它叫不醒正在 sleep 的线程，所以 interrupt 更通用。</li><li><code>Thread.stop()</code> 已废弃：它会立刻释放线程持有的所有锁，可能让对象停在“改了一半”的状态。</li><li>线程池里的任务：<code>future.cancel(true)</code> 或 <code>shutdownNow()</code>，底层也是 interrupt。</li></ul>
+</section>
+<section id="u1-10"><h2>1.10 线程间通信与其他</h2>
+<p>线程间通信按“机制”分类，每种对应后面的一个单元：</p>
+<ul><li>共享内存 + <code>volatile</code>（单元二）。</li><li><code>synchronized</code> + <code>wait/notify</code>（单元三）。</li><li><code>Lock</code> + <code>Condition</code>、<code>Semaphore</code>、<code>CountDownLatch</code>、<code>CyclicBarrier</code>（单元六）。</li><li><code>BlockingQueue</code>（单元十）、<code>join()</code>、<code>Future</code>（单元八）、管道流 <code>PipedInputStream</code>。</li></ul>
+<p>其他知识点：</p>
+<ul><li><strong>守护线程</strong>：<code>setDaemon(true)</code> 且必须在 start 前调用。所有非守护线程结束后 JVM 就退出，守护线程的 finally 不保证执行。GC 线程就是守护线程。</li><li><strong>join()</strong>：底层是 <code>while (isAlive()) wait(0)</code>，线程结束时 JVM 会调 <code>notifyAll</code>。</li><li><strong>yield()</strong>：提示调度器让出 CPU，仍是 RUNNABLE，可能马上又被选中。</li></ul>
+</section>
+<section id="u1-interview" class="interview"><h2>面试这样说</h2>
+<p class="hint">先合上答案，自己用 30 秒说一遍，再展开对照。</p>
+<details class="qa"><summary>问：线程有哪些状态，怎么转换？</summary><div class="ans">Java 在 Thread.State 里定义了 6 种状态。new 出来还没 start 是 NEW；start 后进入 RUNNABLE，它包含操作系统层面的就绪和运行；run 执行完就是 TERMINATED。中间有三种等待：抢 synchronized 锁失败进入 BLOCKED，拿到锁就回到 RUNNABLE；调用 wait、join 或 LockSupport.park 进入 WAITING，要等别人 notify 或 unpark；带超时的 sleep、wait(n) 进入 TIMED_WAITING，时间到自动返回。补充一点：wait 的线程被唤醒后，要先回到 BLOCKED 重新抢锁。</div></details>
+<details class="qa"><summary>问：sleep 和 wait 有什么区别？</summary><div class="ans">我从四个角度说。一是归属，sleep 是 Thread 的静态方法，wait 是 Object 的方法。二是锁，sleep 不释放锁，wait 会释放锁。三是使用条件，wait 必须在 synchronized 里调用，否则抛 IllegalMonitorStateException。四是唤醒，sleep 到时间自动醒，wait 要靠 notify/notifyAll、超时或中断。wait 放在 Object 上，是因为锁是对象级别的，等待队列挂在对象的 monitor 上。</div></details>
+<details class="qa"><summary>问：如何停止一个正在运行的线程？</summary><div class="ans">推荐用中断。调用 t.interrupt() 设置中断标志，线程在循环里检查 isInterrupted() 决定是否退出。如果线程正阻塞在 sleep、wait 上，会抛 InterruptedException 并清除标志，所以 catch 里要再调一次 interrupt() 恢复标志。也可以用 volatile 标志位，但它叫不醒正在 sleep 的线程。stop() 已经废弃，因为它会强行释放所有锁，让数据停在改了一半的状态。</div></details>
+<details class="qa"><summary>问：说一下 Java 对象的内存布局，对象头里有什么？</summary><div class="ans">一个对象在堆里分三部分：对象头、实例数据和对齐填充。对象头里有 Mark Word 和类型指针，数组还多一个长度字段。Mark Word 在 64 位 JVM 上占 8 字节，存 hashCode、GC 分代年龄和锁状态，最低两位是锁标志位，加锁时这块内容会被改写成指向锁记录或 monitor 的指针。类型指针指向方法区里的类元数据，开启压缩指针时占 4 字节。实例数据是字段的值，对齐填充让对象大小凑成 8 的倍数，所以一个 new Object() 是 16 字节。和并发相关的是 Mark Word：重量级锁时它指向 ObjectMonitor，里面的 EntryList 放等锁的线程，WaitSet 放调用了 wait 的线程。</div></details>
+</section>
+<section id="u1-quiz" class="quiz"><h2>自测</h2>
+<p class="hint">先自己回答，再点开答案对照；勾上“我会了”的题会记在这台设备的浏览器里。<span class="qz-progress"></span></p><ol class="quizlist"><li class="qz" data-qid="u1-q1"><div class="qz-q">为什么局部变量是线程安全的，成员变量不是？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>局部变量在<b>虚拟机栈</b>里，栈是每个线程私有的，每个线程调用方法都拿到自己的一份。成员变量在<b>堆</b>上的对象里，多个线程拿到同一个对象的引用，就会读写同一份数据。注意：局部变量如果指向一个会被其他线程拿到的对象，那个对象本身仍然是共享的。</div></li><li class="qz" data-qid="u1-q2"><div class="qz-q">等 ReentrantLock 的线程是什么状态？为什么？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden><b>WAITING</b>，jstack 里显示 <code>WAITING (parking)</code>。ReentrantLock 基于 AQS，抢不到锁的线程用 <code>LockSupport.park()</code> 挂起；BLOCKED 只用于等 synchronized 的 monitor。</div></li><li class="qz" data-qid="u1-q3"><div class="qz-q">wait 为什么必须在 synchronized 里，且要放在 while 里？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>必须在 synchronized 里：WaitSet 属于对象的 monitor，只有 Owner 才能往里放人、叫人，否则抛 <code>IllegalMonitorStateException</code>；设计上也是为了让“判断条件 + wait”成为原子操作，避免丢失唤醒。要放在 while 里：Java 的 monitor 是 Mesa 风格，被 notify 只是回到 EntryList 重新抢锁，真正拿到锁时条件可能已经被别的线程改掉，也可能是虚假唤醒，所以要重新检查（1.8 节的演示里 C 就是这样又睡回去的）。</div></li><li class="qz" data-qid="u1-q4"><div class="qz-q">catch 到 InterruptedException 后为什么要再调一次 interrupt()？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>sleep、wait 抛出 InterruptedException 时会<b>先清除中断标志</b>。如果 catch 里不恢复，外层循环的 <code>isInterrupted()</code> 读到 false，中断请求就被吞掉了，线程停不下来，上层代码也不知道发生过中断（1.9 节演示的“什么都不做”分支）。</div></li><li class="qz" data-qid="u1-q5"><div class="qz-q">new Object() 占多少字节？分别是哪几部分？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden><b>16 字节</b>（64 位 JVM、开启压缩指针）：Mark Word 8 字节 + 类型指针 4 字节 = 12 字节对象头，没有实例数据，再补 4 字节对齐填充，凑成 8 的倍数。</div></li><li class="qz" data-qid="u1-q6"><div class="qz-q">Monitor 的三个区域各对应哪种线程状态？被 notify 的线程立刻就能执行吗？在 jstack 里会看到什么？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>Owner：持有锁的线程，通常是 RUNNABLE（在锁里 sleep 时是 TIMED_WAITING）；EntryList：等锁的线程，BLOCKED；WaitSet：调用了 wait 的线程，WAITING 或 TIMED_WAITING。被 notify 的线程<b>不能立刻执行</b>：它只是从 WaitSet 挪到 EntryList，变成 BLOCKED，要等 Owner 释放锁并抢到锁之后才继续。jstack 里显示 <code>waiting to re-lock in wait()</code>。</div></li></ol>
+</section></div><!--PAGER-u1--></article>
+<article class="view" id="view-u2" data-view="u2" hidden><div class="prose"><header class="u-head"><div class="u-no">单元二</div><h1>JMM 与 volatile</h1><p class="u-sub">并发 bug 从哪里来</p><p class="motto">写进了自己的缓存，不等于别人看得见。</p></header>
+<p class="core">本单元的核心：并发 bug 来自三个硬件/编译器优化，JMM 用 happens-before 给出可见性承诺，volatile 用内存屏障兑现其中的<strong>可见性和有序性，但不管原子性</strong>。</p>
+<div class="goals"><div class="g-h">学习目标</div><div class="g-row"><span class="g-tag g-must">必会</span><span>2.0 两个现象、2.1 三大问题、2.5 volatile 的两个作用、2.6 不保证原子性、2.7 DCL</span></div><div class="g-row"><span class="g-tag g-plus">加分</span><span>2.2 缓存行、MESI 与写缓冲、2.4 happens-before 推导、2.1 “最小结果是 2”</span></div><div class="g-row"><span class="g-tag g-know">了解</span><span>2.3 三种重排序</span></div></div>
+<section id="u2-0"><h2>2.0 先看现象：两段会出错的代码</h2>
+<p>先把问题跑出来，后面的原理就是在解释这两个现象。</p>
+<p><strong>现象一：改了变量，循环却停不下来（可见性）</strong></p>
+<pre class="codeblock" data-lang="java"><code>public class ForeverLoop {
+    static boolean stop = false;            // 加上 volatile 后循环就能停下
+
+    public static void main(String[] args) throws InterruptedException {
+        new Thread(() -&gt; {
+            try { Thread.sleep(100); } catch (InterruptedException ignored) {}
+            stop = true;
+            System.out.println("已把 stop 改为 true");
+        }).start();
+
+        int i = 0;
+        while (!stop) {                     // JIT 优化后可能变成 while (true)
+            i++;
+        }
+        System.out.println("循环结束，i = " + i);
+    }
+}</code></pre>
+<p>在 JDK 17 上实测：打印了“已把 stop 改为 true”，但 3 秒后程序仍在循环。把 <code>stop</code> 改成 <code>volatile</code> 后，循环立刻结束。原因在 JIT（即时编译器）：HotSpot 一开始逐条解释执行字节码，发现某段代码执行得特别频繁（热点代码），就把它编译成机器码并做激进优化。这里循环执行次数太多，JIT 认为 <code>stop</code> 在循环里没人改，就把它提到循环外只读一次，等价于 <code>while (true)</code>。volatile 告诉 JIT 和 CPU：这个变量每次都要读最新值。</p>
+<p><strong>现象二：票卖重了（原子性）</strong></p>
+<pre class="codeblock" data-lang="java"><code>public class TicketDemo {
+    private int tickets = 10000;
+
+    public void sell() {                    // 改成 synchronized void sell() 就正确了
+        if (tickets &gt; 0) {
+            tickets--;
+        }
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        TicketDemo demo = new TicketDemo();
+        Thread[] ts = new Thread[4];
+        for (int i = 0; i &lt; 4; i++) {
+            ts[i] = new Thread(() -&gt; { for (int j = 0; j &lt; 5000; j++) demo.sell(); });
+            ts[i].start();
+        }
+        for (Thread t : ts) t.join();
+        System.out.println("剩余票数：" + demo.tickets + "（正确应为 0）");
+    }
+}</code></pre>
+<p>4 个线程一共调用 20000 次 <code>sell()</code>，票应该全部卖光。实测 3 次得到剩余 2183、1645、0。余票没减完，说明有两个线程读到了同一个票数、各自减 1 后写回，同一张票被卖了两次。还要注意，第 3 次的结果刚好对了：<strong>并发 bug 不是每次都会出现，跑对一次不代表代码正确</strong>。</p>
+</section>
+<section id="u2-1"><h2>2.1 三大问题的根源</h2>
+<div class="tbl"><table><thead><tr><th>问题</th><th>根源</th><th>典型现象</th><th>谁来解决</th></tr></thead><tbody><tr><td>可见性</td><td>每个 CPU 核有自己的缓存，写入先进缓存/写缓冲</td><td>线程 A 把 flag 改成 true，线程 B 一直读到 false，死循环</td><td>volatile、synchronized、Lock、final</td></tr><tr><td>有序性</td><td>编译器和 CPU 为了性能重排指令</td><td>DCL 单例拿到半初始化对象</td><td>volatile、synchronized</td></tr><tr><td>原子性</td><td>线程在任意两条指令之间都可能被切走</td><td><code>count++</code> 丢失更新</td><td>synchronized、Lock、CAS/原子类</td></tr></tbody></table></div>
+<p><code>count++</code> 为什么不是原子的？它对应三步：读 count 到寄存器 → 寄存器 +1 → 写回。两个线程都读到 5，都写回 6，就丢了一次。</p>
+<p>用 <code>javap -c</code> 反编译可以亲眼看到这三步。下面是成员变量 <code>count++</code> 在 JDK 17 上编译出的字节码：</p>
+<pre class="codeblock" data-lang="text"><code>0: aload_0
+1: dup
+2: getfield      #13                 // Field count:I
+5: iconst_1
+6: iadd
+7: putfield      #13                 // Field count:I</code></pre>
+<p><code>getfield</code> 读、<code>iadd</code> 加、<code>putfield</code> 写回，是三条独立的指令。线程可以在任意两条之间被切走，读和写回之间只要插进别的线程的写，就会丢一次更新。JIT 编译成机器码后，也仍然是读、加、写三步。</p>
+<div class="lab-mount" data-lab="race"></div>
+<p><strong>场景题：两个线程各对 <code>int x = 0</code> 执行 50 次 <code>x++</code>，结果可能是多少？</strong> 答：最大 100；大多数人会答最小 50，但理论最小是 <strong>2</strong>。构造方式：A 读到 0 后被挂起；B 跑完 49 次；A 写回 1；B 读到 1 后被挂起；A 跑完剩下 49 次；B 写回 2。能说出这个构造过程很加分。</p>
+<div class="lab-mount" data-lab="min2"></div>
+</section>
+<section id="u2-2"><h2>2.2 底层预备：从 CPU 缓存到 JMM</h2>
+<p><strong>先看硬件：一个核写的值，另一个核为什么看不到</strong></p>
+<p>CPU 算得太快、内存太慢，所以每个核和内存之间隔着好几层缓存。越靠近核越快，容量也越小：</p>
+<div class="tbl"><table><thead><tr><th>层级</th><th>归属</th><th>访问耗时（量级）</th></tr></thead><tbody><tr><td>寄存器</td><td>每个核私有</td><td>不到 1 纳秒</td></tr><tr><td>L1 / L2 缓存</td><td>每个核私有</td><td>1~5 纳秒</td></tr><tr><td>L3 缓存</td><td>多个核共享</td><td>十几纳秒</td></tr><tr><td>内存</td><td>所有核共享</td><td>约 100 纳秒</td></tr></tbody></table></div>
+<ul><li><strong>缓存行</strong>：缓存不是一个变量一个变量地存，而是按“行”整块搬运，常见的 x86 是 64 字节（Apple M 系列是 128 字节）。一个核改了某个变量，实际是改了它所在的那一整行。4.5 节的伪共享就是这么来的。</li><li><strong>MESI 协议</strong>：保证多个核缓存同一行时数据一致。每个缓存行有 4 种状态：M（已修改，只有我有，和内存不一致）、E（独占，只有我有，和内存一致）、S（共享，多个核都有）、I（失效，不能再用）。核心规则只有一条：<strong>一个核要写某一行，必须先让其他核里的这一行变成 I</strong>。</li><li><strong>写缓冲与失效队列</strong>：严格按 MESI 走，每次写都要等其他核回复“已失效”，太慢了。所以 CPU 加了两个队列：写操作先放进<strong>写缓冲（Store Buffer）</strong>就接着往下执行；收到的失效通知先放进<strong>失效队列（Invalidate Queue）</strong>，稍后再处理。</li></ul>
+<p>代价是：A 核写了，B 核一段时间内还读到旧值，这是<strong>可见性</strong>问题；A 核先后写的两个变量，B 核看到的顺序可能和写入顺序不一致（在 ARM 等弱内存模型的 CPU 上更明显），这是<strong>有序性</strong>问题。<strong>内存屏障</strong>的作用就是强制清空这两个队列，2.5 节的 volatile 靠的就是它。所以“有了 MESI 为什么还要 volatile”的答案是：MESI 本身是一致的，不一致来自它前面的这两个队列。</p>
+<div class="lab-mount" data-lab="visibility"></div>
+<p><strong>JMM 把这些硬件细节抽象成一个简单模型</strong>：</p>
+<ul><li>JMM（Java Memory Model）是一套<strong>规范</strong>，不是 JVM 的内存区域（堆、栈那个叫“运行时数据区”，别混）。</li><li>它的抽象：共享变量在<strong>主内存</strong>，每个线程有自己的<strong>工作内存</strong>（对应 CPU 缓存、寄存器、写缓冲）。线程只能操作工作内存，再同步回主内存。</li><li>它的作用：屏蔽 x86、ARM 等硬件内存模型的差异，给程序员一个统一的承诺：<strong>只要你按规则写（用 volatile/锁），就能看到正确的结果</strong>。</li></ul>
+</section>
+<section id="u2-3"><h2>2.3 重排序与 as-if-serial</h2>
+<ul><li>三种重排序：编译器优化重排（含 JIT）、指令级并行重排（CPU 乱序执行）、内存系统重排（写缓冲导致）。</li><li><strong>as-if-serial</strong>：不管怎么重排，<strong>单线程</strong>的执行结果不变。有数据依赖的指令不会被重排。</li><li>问题在于：它只保证单线程。对其他线程来说，你的两条无依赖的写操作可能倒过来被看到。</li></ul>
+</section>
+<section id="u2-4"><h2>2.4 happens-before：JMM 给的承诺</h2>
+<p><strong>定义</strong>：如果 A happens-before B，那么 A 的结果对 B 可见，且 A 的执行顺序看起来在 B 之前。它说的是<strong>可见性</strong>，不是时间上的先后；JVM 可以重排，只要结果不违反这个关系。</p>
+<p>常考的 6 条规则：</p>
+<ol><li><strong>程序顺序规则</strong>：同一线程内，前面的操作 hb 后面的操作。</li><li><strong>监视器锁规则</strong>：解锁 hb 之后对同一把锁的加锁。</li><li><strong>volatile 规则</strong>：对 volatile 变量的写 hb 之后对它的读。</li><li><strong>传递性</strong>：A hb B，B hb C，则 A hb C。</li><li><strong>start 规则</strong>：<code>t.start()</code> hb t 里的任何操作。</li><li><strong>join 规则</strong>：t 里的任何操作 hb <code>t.join()</code> 返回。</li></ol>
+<p>规则 1 + 3 + 4 组合起来就是 volatile 的“顺风车”效应：</p>
+<pre class="codeblock" data-lang="java"><code>int data = 0;
+volatile boolean ready = false;
+
+// 线程 A
+data = 42;        // ①
+ready = true;     // ② volatile 写
+
+// 线程 B
+if (ready) {      // ③ volatile 读
+    print(data);  // ④ 一定是 42
+}
+// ① hb ②（程序顺序），② hb ③（volatile），③ hb ④（程序顺序）⇒ ① hb ④</code></pre>
+<div class="lab-mount" data-lab="hb"></div>
+<p>这也是 AQS 的底气：AQS 的 state 是 volatile 的，释放锁时写 state、加锁时读 state，所以临界区内的普通变量修改也能被下一个拿锁的线程看到。</p>
+</section>
+<section id="u2-5"><h2>2.5 volatile 的底层：内存屏障</h2>
+<p><strong>可见性</strong>：写 volatile 变量时，立即刷回主存，并让其他 CPU 中该缓存行失效；读时从主存重新加载。在 x86 上，JIT 编译后的 volatile 写会多一条 <code>lock addl $0x0,(%rsp)</code> 指令，<code>lock</code> 前缀的作用就是清空写缓冲并广播失效。</p>
+<p><strong>有序性</strong>：编译器在 volatile 读写前后插入内存屏障。屏障按“禁止哪两类操作交换顺序”分 4 种：LoadLoad、StoreStore、LoadStore、StoreLoad。</p>
+<div class="tbl"><table><thead><tr><th>位置</th><th>插入的屏障</th><th>作用</th></tr></thead><tbody><tr><td>volatile 写之前</td><td>StoreStore</td><td>前面的普通写不能排到 volatile 写后面</td></tr><tr><td>volatile 写之后</td><td>StoreLoad</td><td>volatile 写不能和后面的读交换（开销最大的一种）</td></tr><tr><td>volatile 读之后</td><td>LoadLoad</td><td>后面的读不能排到 volatile 读前面</td></tr><tr><td>volatile 读之后</td><td>LoadStore</td><td>后面的写不能排到 volatile 读前面</td></tr></tbody></table></div>
+<p>记忆法：<strong>volatile 写是“收尾”</strong>，之前的写必须先完成；<strong>volatile 读是“开头”</strong>，之后的操作必须等它读完。x86 本身只会发生 Store-Load 重排，所以实际只需要那一条 lock 指令。</p>
+<p>使用技巧（由上面的屏障规则直接推出）：一组写操作里，<strong>把 volatile 变量的写放在最后</strong>；一组读操作里，<strong>把 volatile 变量的读放在最前</strong>。2.4 节的 data/ready 例子就是这样写的。如果把 volatile 加在 data 上、ready 不加，屏障挡不住 ready 的写被提前，就保证不了顺序。</p>
+</section>
+<section id="u2-6"><h2>2.6 volatile 不保证原子性</h2>
+<pre class="codeblock" data-lang="java"><code>volatile int count = 0;
+// 10 个线程各执行 1000 次 count++，结果通常小于 10000</code></pre>
+<p>volatile 只保证“读到的是最新值”，但读、加、写三步之间仍然会被别的线程插队。解决方式：<code>synchronized</code>、<code>ReentrantLock</code>、<code>AtomicInteger</code>。</p>
+<p><strong>volatile 的适用场景</strong>：一写多读的状态标志位（如 <code>running</code>）、DCL 单例、配合 CAS 使用（原子类和 AQS 里的 value/state 都是 volatile）。</p>
+</section>
+<section id="u2-7"><h2>2.7 DCL 单例：为什么已经有 synchronized 还要 volatile</h2>
+<pre class="codeblock" data-lang="java"><code>public class Singleton {
+    private static volatile Singleton instance;   // volatile 不能少
+    private Singleton() {}
+
+    public static Singleton getInstance() {
+        if (instance == null) {                  // 第一次检查：避免每次都加锁
+            synchronized (Singleton.class) {
+                if (instance == null) {          // 第二次检查：防止重复创建
+                    instance = new Singleton();
+                }
+            }
+        }
+        return instance;
+    }
+}</code></pre>
+<p><code>instance = new Singleton()</code> 实际是三步：① 分配内存 → ② 调用构造方法初始化 → ③ 把引用赋给 instance。②③ 可能重排为 ①③②。线程 A 执行完 ③ 还没 ② 时，线程 B 在<strong>锁外面</strong>的第一次检查看到 instance 不为 null，直接拿去用，就用到了未初始化的对象。</p>
+<p>synchronized 只保证锁内的线程看到正确结果，第一次检查在锁外，不受它保护。volatile 的 StoreStore 屏障保证②一定在③之前。</p>
+<div class="lab-mount" data-lab="dcl"></div>
+</section>
+<section id="u2-8"><h2>2.8 volatile 与 synchronized 对比</h2>
+<div class="tbl"><table><thead><tr><th>对比项</th><th>volatile</th><th>synchronized</th></tr></thead><tbody><tr><td>修饰对象</td><td>只能修饰变量</td><td>方法、代码块</td></tr><tr><td>可见性</td><td>保证</td><td>保证（解锁前刷主存，加锁时清工作内存）</td></tr><tr><td>有序性</td><td>保证（禁止重排）</td><td>保证“结果有序”（临界区内仍可重排，但单线程执行，外界无感）</td></tr><tr><td>原子性</td><td><strong>不保证</strong></td><td>保证</td></tr><tr><td>是否阻塞</td><td>不阻塞</td><td>可能阻塞</td></tr><tr><td>性能</td><td>轻量，读几乎和普通变量一样</td><td>经锁优化后也不差，但重度竞争时要进内核</td></tr></tbody></table></div>
+</section>
+<section id="u2-9"><h2>2.9 保证线程安全的三类手段（总览）</h2>
+<ul><li><strong>互斥同步（悲观锁）</strong>：<code>synchronized</code>、<code>ReentrantLock</code> → 单元三、六。</li><li><strong>非阻塞同步（乐观锁）</strong>：CAS、原子类、版本号 → 单元四。</li><li><strong>无同步方案</strong>：不共享就不会出问题——局部变量、<code>ThreadLocal</code>（单元九）、不可变对象（<code>final</code>、String）。</li></ul>
+</section>
+<section id="u2-interview" class="interview"><h2>面试这样说</h2>
+<p class="hint">先合上答案，自己用 30 秒说一遍，再展开对照。</p>
+<details class="qa"><summary>问：导致并发程序出问题的根本原因是什么？</summary><div class="ans">三个：原子性、可见性、有序性。原子性是线程可能在任意两条指令之间被切换，比如 count++ 分读、加、写三步；可见性是 CPU 缓存和 JIT 优化导致一个线程的修改别人看不到；有序性是编译器和 CPU 会重排指令。synchronized 和 Lock 三个都能保证，volatile 只保证可见性和有序性，原子类用 CAS 保证单个变量的原子性。</div></details>
+<details class="qa"><summary>问：谈谈你对 JMM 的理解。</summary><div class="ans">JMM 是 Java 内存模型，是一套规范，用来屏蔽不同硬件的内存差异。它把内存抽象成所有线程共享的主内存和每个线程私有的工作内存，线程只能操作自己的工作内存，再同步回主内存，这就带来了可见性问题。JMM 用 happens-before 规则告诉程序员，一个线程的写什么时候对另一个线程可见，比如解锁先于后续加锁、volatile 写先于后续读。volatile、synchronized、final 就是具体的实现手段。</div></details>
+<details class="qa"><summary>问：谈谈你对 volatile 的理解。</summary><div class="ans">volatile 修饰共享变量，有两个作用。第一是可见性：一个线程写了它，其他线程马上能读到最新值。比如用 boolean 做停止标志，不加 volatile 的话，JIT 可能把循环优化成死循环。第二是禁止指令重排：读写它时会插入内存屏障，典型应用是 DCL 单例，防止别的线程拿到还没初始化完的对象。但它不保证原子性，count++ 这种读改写操作还是要用锁或 AtomicInteger。</div></details>
+</section>
+<section id="u2-quiz" class="quiz"><h2>自测</h2>
+<p class="hint">先自己回答，再点开答案对照；勾上“我会了”的题会记在这台设备的浏览器里。<span class="qz-progress"></span></p><ol class="quizlist"><li class="qz" data-qid="u2-q1"><div class="qz-q">有了 MESI，为什么还需要 volatile？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>MESI 本身能保证缓存一致，但 CPU 为了不等待，在它前面加了<b>写缓冲</b>和<b>失效队列</b>，于是会出现“写了别人暂时看不到”和“顺序看起来被打乱”。另外 JIT 还可能把读提到循环外。volatile 让 JIT 插入内存屏障（清空写缓冲、处理失效队列），并禁止这类编译优化。</div></li><li class="qz" data-qid="u2-q2"><div class="qz-q">用 happens-before 解释上面的 data/ready 例子。</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>① <code>data = 42</code> hb ② <code>ready = true</code>（程序顺序规则）；② hb ③ 读到 ready 为 true（volatile 规则）；③ hb ④ <code>print(data)</code>（程序顺序规则）。由传递性得到 ① hb ④，所以 ④ 一定能看到 42。去掉 volatile，② 和 ③ 之间就没有任何规则相连，结论就推不出来了。</div></li><li class="qz" data-qid="u2-q3"><div class="qz-q">DCL 去掉 volatile 会出什么问题？去掉第二次检查呢？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>去掉 volatile：<code>new Singleton()</code> 的“执行构造方法”和“把引用赋给 instance”可能重排，另一个线程在锁外的第一次检查看到 instance 不为 null，就拿走一个还没初始化完的对象。去掉第二次检查：两个线程都通过第一次检查后排队进锁，后进锁的线程不再检查，会再 new 一个，单例被破坏。</div></li><li class="qz" data-qid="u2-q4"><div class="qz-q">两个线程各加 50 次，最小结果为什么是 2？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>构造方法：A 读到 0 后被切走；B 完整执行 49 次，x = 49；A 回来写回 1，B 的 49 次全被覆盖；B 第 50 次读到 1 后被切走；A 执行完剩下的 49 次，x = 50；B 回来写回 2。关键是两次“读到旧值、挂起很久、再写回覆盖别人”。</div></li></ol>
+</section></div><!--PAGER-u2--></article>
+<article class="view" id="view-u3" data-view="u3" hidden><div class="prose"><header class="u-head"><div class="u-no">单元三</div><h1>synchronized</h1><p class="u-sub">对象头 + monitor + 锁升级</p><p class="motto">锁记在对象头里，能不进内核就不进内核。</p></header>
+<p class="core">本单元的核心：synchronized 锁的是<strong>对象</strong>，锁的状态记在对象头的 Mark Word 里。锁升级的全部意义只有一个：<strong>能不进内核就不进内核</strong>。</p>
+<div class="goals"><div class="g-h">学习目标</div><div class="g-row"><span class="g-tag g-must">必会</span><span>3.4 Monitor 的 Owner / EntryList / WaitSet 与线程流转、3.5 锁升级、3.7 与 ReentrantLock 的区别</span></div><div class="g-row"><span class="g-tag g-plus">加分</span><span>3.3 用代码打印 Mark Word、“hashCode 与偏向锁”、偏向锁为什么被废弃、3.4 重量级锁为什么“重”</span></div><div class="g-row"><span class="g-tag g-know">了解</span><span>3.2 字节码与异常表、3.6 锁消除与锁粗化</span></div></div>
+<p>先回忆 2.0 节的卖票代码：给 <code>sell()</code> 加上 <code>synchronized</code> 后，每次都能正确卖光。本单元要回答的就是：这一个关键字在 JVM 里到底做了什么。</p>
+<p>1.5 节已经介绍了对象头和 Monitor 的基本结构。本单元往下再挖一层：先看 synchronized 编译成了什么（3.2），再把 Mark Word 的每一位打印出来（3.3），然后进到 ObjectMonitor 内部（3.4），最后串成锁升级的全过程（3.5）。</p>
+<section id="u3-1"><h2>3.1 三种用法，锁的分别是谁</h2>
+<pre class="codeblock" data-lang="java"><code>public synchronized void a() {}          // 锁当前实例 this
+public static synchronized void b() {}   // 锁当前类的 Class 对象
+synchronized (lockObj) { }               // 锁括号里的对象</code></pre>
+<ul><li><strong>静态方法和普通方法的区别</strong>：锁的是不同对象（Class 对象 vs this），所以一个线程调静态同步方法、另一个调实例同步方法，<strong>不互斥</strong>。</li><li>不要锁 String 常量和 <code>Integer</code> 等包装类：字符串常量池和 Integer 缓存会让不相关的代码锁到同一个对象；<code>count++</code> 之后 Integer 又变成了新对象，锁就失效了。</li><li>构造方法不能用 synchronized 修饰（语法不允许），因为对象构造完成前其他线程本来就拿不到它的引用。</li></ul>
+</section>
+<section id="u3-2"><h2>3.2 字节码层面</h2>
+<ul><li><strong>同步代码块</strong>：编译出 <code>monitorenter</code> 和 <code>monitorexit</code> 指令。通常有<strong>两个</strong> monitorexit：一个在正常返回路径，一个在异常路径。这就是 synchronized 抛异常也会自动释放锁的原因。</li><li><strong>同步方法</strong>：没有这两条指令，而是在方法的 access flags 里加一个 <code>ACC_SYNCHRONIZED</code>。JVM 调用方法时看到它，就先去拿锁。</li><li>两者最终都是去获取对象关联的 monitor。</li></ul>
+<p>用 <code>javap -c -v</code> 反编译下面这段代码，可以亲眼看到这两种形式：</p>
+<pre class="codeblock" data-lang="java"><code>public class SyncBytecode {
+    private final Object lock = new Object();
+    private int count;
+
+    public void block() {
+        synchronized (lock) { count++; }
+    }
+
+    public synchronized void method() { count++; }
+}</code></pre>
+<p>JDK 17 实测输出（节选，右侧中文注释是后加的）：</p>
+<pre class="codeblock" data-lang="text"><code>public void block();
+     0: aload_0
+     1: getfield      #7     // Field lock:Ljava/lang/Object;
+     4: dup
+     5: astore_1             // 把锁对象存进局部变量，留着解锁用
+     6: monitorenter         // 加锁
+     7: aload_0
+     ...                     // count++
+    17: aload_1
+    18: monitorexit          // 正常出口：解锁
+    19: goto          27
+    22: astore_2             // 异常出口：先把异常存起来
+    23: aload_1
+    24: monitorexit          //           解锁
+    25: aload_2
+    26: athrow               //           再把异常抛出去
+    27: return
+  Exception table:
+     from    to  target type
+         7    19    22   any
+        22    25    22   any
+
+public synchronized void method();
+  flags: (0x0021) ACC_PUBLIC, ACC_SYNCHRONIZED</code></pre>
+<p>异常表第一行的意思是：第 7~19 条指令（同步块内部）抛出任何异常，都跳到第 22 条，先 monitorexit 再 athrow。这就是“synchronized 抛异常也会释放锁”的底层保证。第二行覆盖的是异常处理代码自己，是 javac 加的保险。再留意第 5 条：锁对象在加锁前就存进了局部变量，解锁时用的是这份副本，所以加锁和解锁一定是同一个对象。</p>
+<div class="lab-mount" data-lab="bytecode"></div>
+</section>
+<section id="u3-3"><h2>3.3 Mark Word 的完整布局：把锁状态打印出来</h2>
+<p>1.5 节讲过，Mark Word 占 8 字节，靠最低几位区分锁状态。下表是 64 位 HotSpot 里，每种锁状态下这 64 位分别存什么：</p>
+<div class="tbl"><table><thead><tr><th>锁状态</th><th>其余位存什么（从高位到低位）</th><th>偏向位</th><th>锁标志位</th></tr></thead><tbody><tr><td>无锁</td><td>未使用 25 位 + hashCode 31 位 + 未使用 1 位 + GC 年龄 4 位</td><td>0</td><td>01</td></tr><tr><td>偏向锁</td><td>持有锁的线程指针 54 位（常说的“线程 ID”）+ epoch 2 位 + 未使用 1 位 + GC 年龄 4 位</td><td>1</td><td>01</td></tr><tr><td>轻量级锁</td><td>指向持锁线程栈上 Lock Record 的指针</td><td>—</td><td>00</td></tr><tr><td>重量级锁</td><td>指向 ObjectMonitor 的指针</td><td>—</td><td>10</td></tr><tr><td>GC 标记</td><td>给 GC 使用</td><td>—</td><td>11</td></tr></tbody></table></div>
+<div class="lab-mount" data-lab="markword"></div>
+<p><strong>亲手打印出来</strong>：<code>sun.misc.Unsafe</code> 可以按偏移量读对象里的任意字节，对象开头的 8 个字节就是 Mark Word。下面的程序在不同时刻读它，并按最低 3 位判断锁状态：</p>
+<pre class="codeblock" data-lang="java"><code>import sun.misc.Unsafe;
+import java.lang.reflect.Field;
+
+public class MarkWordDemo {
+    static class Point { int x; }
+
+    private static final Unsafe U = getUnsafe();
+
+    // 读对象开头的 8 个字节，就是 Mark Word（64 位 HotSpot）
+    static String mark(Object o) {
+        long m = U.getLong(o, 0L);
+        String bits = String.format("%64s", Long.toBinaryString(m)).replace(' ', '0');
+        String lock;
+        switch ((int) (m &amp; 0b11)) {
+            case 0b01: lock = (m &amp; 0b100) != 0 ? "偏向锁" : "无锁"; break;
+            case 0b00: lock = "轻量级锁"; break;
+            case 0b10: lock = "重量级锁"; break;
+            default:   lock = "GC 标记";
+        }
+        return String.format("0x%016x  末三位 %s → %s", m, bits.substring(61), lock);
+    }
+
+    public static void main(String[] args) throws Exception {
+        // ① 对象头有多大：看第一个字段从第几个字节开始
+        System.out.println("Point.x 的偏移量 = " + U.objectFieldOffset(Point.class.getDeclaredField("x")));
+        System.out.println("int[] 第一个元素的偏移量 = " + U.arrayBaseOffset(int[].class));
+
+        // ② Mark Word 随锁状态变化
+        Object o = new Object();
+        System.out.println("1. 刚 new 出来      " + mark(o));
+
+        int h = o.hashCode();
+        long hashInMark = (U.getLong(o, 0L) &gt;&gt;&gt; 8) &amp; 0x7FFFFFFFL;
+        System.out.println("2. 调用 hashCode 后  " + mark(o));
+        System.out.printf("   hashCode() = 0x%x，Mark Word 第 8~38 位 = 0x%x%n", h, hashInMark);
+
+        synchronized (o) {
+            System.out.println("3. 单线程加锁中      " + mark(o));
+        }
+        System.out.println("4. 释放锁后          " + mark(o));
+
+        Thread holder = new Thread(() -&gt; {
+            synchronized (o) { sleep(500); }
+        });
+        Thread contender = new Thread(() -&gt; {
+            synchronized (o) { }
+        });
+        holder.start();
+        Thread.sleep(100);
+        contender.start();
+        Thread.sleep(100);
+        System.out.println("5. 另一线程在抢锁    " + mark(o) + "（抢锁线程状态：" + contender.getState() + "）");
+        holder.join();
+        contender.join();
+
+        Object p = new Object();
+        synchronized (p) {
+            System.out.println("6. 新对象加锁        " + mark(p));
+            p.wait(10);
+            System.out.println("7. 同一线程 wait 后  " + mark(p));
+        }
+    }
+
+    static void sleep(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException ignored) { }
+    }
+
+    private static Unsafe getUnsafe() {
+        try {
+            Field f = Unsafe.class.getDeclaredField("theUnsafe");
+            f.setAccessible(true);
+            return (Unsafe) f.get(null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+}</code></pre>
+<p>JDK 17 实测输出：</p>
+<pre class="codeblock" data-lang="text"><code>Point.x 的偏移量 = 12
+int[] 第一个元素的偏移量 = 16
+1. 刚 new 出来      0x0000000000000001  末三位 001 → 无锁
+2. 调用 hashCode 后  0x0000005c647e0501  末三位 001 → 无锁
+   hashCode() = 0x5c647e05，Mark Word 第 8~38 位 = 0x5c647e05
+3. 单线程加锁中      0x000000016bddaad0  末三位 000 → 轻量级锁
+4. 释放锁后          0x0000005c647e0501  末三位 001 → 无锁
+5. 另一线程在抢锁    0x000000012693e942  末三位 010 → 重量级锁（抢锁线程状态：BLOCKED）
+6. 新对象加锁        0x000000016bddaad0  末三位 000 → 轻量级锁
+7. 同一线程 wait 后  0x0000000109404962  末三位 010 → 重量级锁</code></pre>
+<p>逐行看：</p>
+<ul><li><strong>前两行</strong>：第一个字段从第 12 字节开始，数组元素从第 16 字节开始，印证了 1.5 节“对象头 12 字节，数组多 4 字节长度”。</li><li><strong>第 1、2 行</strong>：刚创建时 hash 位全是 0；调用 hashCode() 后，中间那段 <code>5c647e05</code> 正好等于 hashCode() 的返回值。hashCode 确实存在 Mark Word 里，而且是第一次调用时才写进去的。</li><li><strong>第 3、4 行</strong>：单线程加锁，末两位变成 00（轻量级锁），前面变成一个地址，指向当前线程栈上的 Lock Record。原来的 Mark Word 被搬到 Lock Record 里保管，释放锁时原样换回，所以第 4 行和第 2 行一模一样。</li><li><strong>第 5 行</strong>：另一个线程来抢，末两位变成 10，锁膨胀成重量级，地址指向 ObjectMonitor。抢锁线程是 BLOCKED，待在 EntryList。</li><li><strong>第 6、7 行</strong>：<strong>没有任何竞争</strong>，只是同一个线程在锁里调了一次 wait，锁也膨胀成了重量级。因为只有 ObjectMonitor 才有 WaitSet，轻量级锁没有地方放等待的线程。</li></ul>
+<p>运行说明：JDK 17 默认关闭偏向锁，所以第 1 行直接是无锁。编译时会有“Unsafe 是内部专用 API”的警告，可以忽略。JDK 23 起默认换成了新的轻量级锁实现，加锁后 Mark Word 不再存 Lock Record 地址，第 3 行的输出会不同；本文以 JDK 8~17 的经典实现为准。</p>
+<p>一个很有区分度的问题：<strong>对象调用过 <code>hashCode()</code> 后还能进入偏向锁吗？</strong> 不能。偏向锁要把线程 ID 写进 Mark Word，和 hashCode 抢同一块位置。已计算 hash 的对象直接走轻量级；偏向状态下调用 hashCode 会导致偏向撤销。轻量级和重量级没这个问题，因为原 Mark Word 被保存在 Lock Record 或 monitor 里了。</p>
+<p>这个结论也能跑出来。在 JDK 17 上用 <code>-XX:+UseBiasedLocking -XX:BiasedLockingStartupDelay=0</code> 重新打开偏向锁（会提示参数已废弃），对一个新对象依次加锁、释放、调用 hashCode，Mark Word 的变化如下（整理后的实测输出）：</p>
+<pre class="codeblock" data-lang="text"><code>刚 new 出来    0x0000000000000005   末三位 101：偏向锁，线程指针还是 0（匿名偏向）
+加锁中        0x000000014300e005   前面写入了当前线程的指针
+释放锁后      0x000000014300e005   不变：退出同步块不会撤销偏向
+调用 hashCode  0x00000058644d4601   末三位 001：偏向被撤销，hashCode 写了进来</code></pre>
+<p>最后一行就是证据：hashCode 和线程指针要用 Mark Word 里同一块位置，两者只能留一个。第二、三行则对应 3.5 节的“之后同一个线程再进入，只比较线程 ID”：偏向信息一直留在对象头里。</p>
+</section>
+<section id="u3-4"><h2>3.4 ObjectMonitor：重量级锁的实体</h2>
+<p>HotSpot 里的 monitor 是 C++ 对象 <code>ObjectMonitor</code>。1.5 节诊室类比里的三个区域，对应到源码是这几个字段：</p>
+<div class="tbl"><table><thead><tr><th>字段</th><th>含义</th></tr></thead><tbody><tr><td><code>_owner</code></td><td>当前持有锁的线程</td></tr><tr><td><code>_recursions</code></td><td>重入次数，释放时减到 0 才真正释放</td></tr><tr><td><code>_cxq</code> / <code>_EntryList</code></td><td>抢锁失败、等待获取锁的线程（BLOCKED）</td></tr><tr><td><code>_WaitSet</code></td><td>调用了 <code>wait()</code> 的线程（WAITING）</td></tr></tbody></table></div>
+<p>线程在 monitor 里的流转：</p>
+<ol><li>抢锁：CAS 把 <code>_owner</code> 设为自己。如果 <code>_owner</code> 已经是自己，<code>_recursions++</code>（<strong>这就是 synchronized 可重入的实现</strong>）。</li><li>抢不到：先自适应自旋几轮，还抢不到就进入 <code>_cxq</code>，然后 park 挂起（BLOCKED）。</li><li>持锁线程调 <code>wait()</code>：释放锁，进入 <code>_WaitSet</code>。</li><li>其他线程调 <code>notify()</code>：把 WaitSet 里的一个线程移到 EntryList/cxq，它要<strong>重新抢锁</strong>。</li><li>释放锁：<code>_recursions</code> 减到 0 后清空 <code>_owner</code>，并唤醒一个等待线程。唤醒的线程要和刚好到来的新线程竞争，所以 <strong>synchronized 是非公平锁</strong>。</li></ol>
+<p><strong>为什么等锁的队列有两个（_cxq 和 _EntryList）？</strong> 新来的线程要并发地入队，用 CAS 压进 <code>_cxq</code> 最便宜（它是单向链表，后进先出）。释放锁时只有 Owner 一个线程在操作，它把 <code>_cxq</code> 里的线程挪到 <code>_EntryList</code>，再从 <code>_EntryList</code> 挑一个唤醒。这样“很多线程同时入队”只需要 CAS，“出队”完全不用额外同步。学习时把两者统称为“等锁队列”就够了。</p>
+<p><strong>monitor 什么时候创建、什么时候回收？</strong> 锁膨胀时创建：轻量级锁遇到竞争，或者在锁里调用了 wait（3.3 节 MarkWordDemo 的第 5、7 行）。不再使用的 monitor 会被 JVM 回收（JDK 15 起由后台线程异步完成），对象回到无锁状态。所以常说的“锁不降级”，准确意思是：正在被使用的重量级锁，不会退回轻量级锁。</p>
+<p>重量级锁为什么“重”：park/unpark 最终依赖 OS 的 mutex/futex，线程挂起和唤醒要在用户态和内核态之间切换，一次可能要微秒级，而临界区代码可能只要几纳秒。</p>
+<p>把“进内核”展开，一次挂起的调用链大致是：<code>ObjectMonitor::enter</code> 自旋失败 → 调用当前线程的 park → 底层是 pthread 的互斥锁和条件变量 → 在 Linux 上最终是 <code>futex</code> 系统调用 → 内核把线程从运行队列里摘下，不再给它分配 CPU。唤醒时反过来再走一遍。这一来一回就是 1.3 节说的用户态、内核态切换。单元五的 <code>LockSupport.park()</code> 底层也是 pthread 条件变量，代价在同一个量级。</p>
+<div class="lab-mount" data-lab="lifecycle"></div>
+</section>
+<section id="u3-5"><h2>3.5 锁升级全过程</h2>
+<p>JDK 1.6 之前 synchronized 一上来就是重量级锁。1.6 引入了分级：<strong>无锁 → 偏向锁 → 轻量级锁 → 重量级锁</strong>，按竞争程度逐级升级，一般不降级（下面可以一步步走一遍）。理解的关键是问自己：<strong>每一级针对什么场景，省掉了什么开销？</strong></p>
+<div class="lab-mount" data-lab="upgrade"></div>
+<p><strong>① 偏向锁：针对“始终只有一个线程反复加锁”</strong></p>
+<ul><li>第一次加锁时，用一次 CAS 把线程 ID 写进 Mark Word。</li><li>之后同一个线程再进入，只比较一下线程 ID，<strong>连 CAS 都不用</strong>。退出时也不主动撤销偏向。</li><li>另一个线程来加锁时，要<strong>撤销偏向</strong>：等全局安全点（safepoint：JVM 让所有 Java 线程都停在已知位置的时刻，也就是 STW，GC 也靠它），检查原线程是否还在同步块里，再升级为轻量级。这一步很贵。</li><li>优化：同一个类的对象撤销太多次（默认 20 次）触发批量重偏向，达到 40 次批量撤销，该类不再偏向。</li><li><strong>JDK 15 起偏向锁默认关闭并被废弃（JEP 374）</strong>。原因：撤销要 STW，收益只在旧式同步集合（Vector、Hashtable）上明显；现代应用大多是线程池、多线程竞争，得不偿失；且代码复杂、维护成本高。</li></ul>
+<p><strong>② 轻量级锁：针对“多个线程交替加锁，但几乎不同时抢”</strong></p>
+<ol><li>线程在自己的栈帧里建一个 <strong>Lock Record</strong>，把对象当前的 Mark Word 复制进去（叫 Displaced Mark Word）。</li><li>用 CAS 把对象的 Mark Word 改成指向这个 Lock Record 的指针。成功就拿到锁。</li><li>CAS 失败：如果 Mark Word 指向的就是自己的栈，说明是重入，再放一个空的 Lock Record 计数；否则说明有竞争，<strong>膨胀为重量级锁</strong>。</li><li>解锁时用 CAS 把 Displaced Mark Word 换回去。</li></ol>
+<p>关于“自旋”的一个注意点：面试资料常说“轻量级锁 CAS 失败后自旋，自旋失败才升级”。严格来说，HotSpot 是先膨胀出 ObjectMonitor，在重量级锁的入口做<strong>自适应自旋</strong>，还拿不到才 park。两种说法都能来，能说出后者更加分。</p>
+<p><strong>③ 重量级锁：针对“真正的激烈竞争”</strong></p>
+<ul><li>Mark Word 指向 ObjectMonitor，抓不到锁的线程进队列并挂起（3.4 节）。</li><li>挂起虽然贵，但竞争激烈时比一直自旋空转 CPU 更划算。</li></ul>
+<p>一句话串起来：偏向锁连 CAS 都省了，轻量级锁用 CAS 代替了内核互斥量，重量级锁才真的让线程睡觉。</p>
+</section>
+<section id="u3-6"><h2>3.6 JVM 对 synchronized 的其他优化</h2>
+<ul><li><strong>自适应自旋</strong>：自旋次数不固定，由上次在同一把锁上的自旋结果决定。上次自旋成功就多转几圈，否则少转或不转。</li><li><strong>锁消除</strong>：JIT 通过逃逸分析发现锁对象不会被其他线程访问，就把锁去掉。例如方法内部的 <code>StringBuffer.append()</code>。</li><li><strong>锁粗化</strong>：循环里反复加解同一把锁，合并成一次大范围的加锁。</li></ul>
+</section>
+<section id="u3-7"><h2>3.7 synchronized 与 ReentrantLock</h2>
+<div class="tbl"><table><thead><tr><th>对比项</th><th>synchronized</th><th>ReentrantLock</th></tr></thead><tbody><tr><td>实现层面</td><td>JVM 关键字，C++ 实现</td><td>JDK 类，基于 AQS（Java 代码）</td></tr><tr><td>加解锁</td><td>自动，异常也会释放</td><td>手动，必须在 finally 里 unlock</td></tr><tr><td>可重入</td><td>是（_recursions）</td><td>是（state 计数）</td></tr><tr><td>公平性</td><td>只有非公平</td><td>默认非公平，可选公平</td></tr><tr><td>可中断</td><td>不可中断，等锁时没法响应 interrupt</td><td><code>lockInterruptibly()</code></td></tr><tr><td>超时获取</td><td>不支持</td><td><code>tryLock(timeout)</code></td></tr><tr><td>条件队列</td><td>一个（wait/notify）</td><td>多个 Condition，可精准唤醒</td></tr><tr><td>等待线程状态</td><td>BLOCKED</td><td>WAITING（park）</td></tr></tbody></table></div>
+<p><strong>怎么选</strong>：简单互斥优先 synchronized，代码简洁、不会忘释放，且 JVM 持续优化。需要可中断、超时、公平、多条件时用 ReentrantLock。典型场景：防止死锁的 <code>tryLock</code>、生产者消费者的“非满/非空”两个 Condition。</p>
+<p><strong>可重入</strong>：同一线程拿到锁后，可以再次获取同一把锁而不会自己把自己堵住。意义：同步方法 A 调用同步方法 B、子类同步方法调 <code>super</code> 的同步方法，都不会死锁。实现：记录“持有者 + 计数”，加一次 +1，释放一次 -1，减到 0 才真正释放。</p>
+</section>
+<section id="u3-interview" class="interview"><h2>面试这样说</h2>
+<p class="hint">先合上答案，自己用 30 秒说一遍，再展开对照。</p>
+<details class="qa"><summary>问：讲一下 synchronized 的底层原理。</summary><div class="ans">synchronized 是对象锁，底层靠 JVM 的 Monitor 实现。同步代码块编译后是 monitorenter 和 monitorexit 指令，同步方法是方法上的 ACC_SYNCHRONIZED 标志。Monitor 里有三个关键结构：Owner 记录持有锁的线程，EntryList 放抢锁失败、处于 BLOCKED 的线程，WaitSet 放调用了 wait 的线程。线程抢锁就是把 Owner 设成自己，如果 Owner 已经是自己就把重入计数加一，所以它是可重入的；释放时唤醒 EntryList 里的线程重新竞争，新来的线程也能抢，所以它是非公平的。</div></details>
+<details class="qa"><summary>问：了解锁升级吗？</summary><div class="ans">JDK 1.6 之后 synchronized 有四种状态：无锁、偏向锁、轻量级锁、重量级锁，记录在对象头的 Mark Word 里，随竞争程度升级。偏向锁针对只有一个线程反复加锁，第一次用 CAS 写入线程 ID，之后只比较 ID；轻量级锁针对多个线程交替加锁，用 CAS 把 Mark Word 换成指向栈中 Lock Record 的指针；一旦 CAS 失败、出现真正的竞争，就膨胀成重量级锁，线程自旋后挂起，要进入内核态。补充一点，偏向锁因为撤销要 STW、收益小，JDK 15 起默认关闭了。</div></details>
+<details class="qa"><summary>问：synchronized 和 Lock 有什么区别？</summary><div class="ans">第一，层面不同：synchronized 是 JVM 关键字，Lock 是 JDK 的接口，常用实现是基于 AQS 的 ReentrantLock。第二，使用方式：synchronized 自动释放，异常也会释放；Lock 要在 finally 里手动 unlock。第三，功能：Lock 支持公平锁、可中断、超时获取和多个 Condition 精准唤醒，synchronized 都不支持。两者都是可重入的悲观锁。竞争不激烈时 synchronized 有锁升级优化，性能差不多，所以简单场景优先 synchronized，需要高级功能时用 Lock。</div></details>
+</section>
+<section id="u3-quiz" class="quiz"><h2>自测</h2>
+<p class="hint">先自己回答，再点开答案对照；勾上“我会了”的题会记在这台设备的浏览器里。<span class="qz-progress"></span></p><ol class="quizlist"><li class="qz" data-qid="u3-q1"><div class="qz-q">synchronized 抛异常为什么能自动释放锁？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>同步代码块编译后有一张<b>异常表</b>：块内抛出任何异常都会跳到一段处理代码，先执行 <code>monitorexit</code> 释放锁，再 <code>athrow</code> 把异常重新抛出去。同步方法则由 JVM 在方法异常退出时自动释放锁。</div></li><li class="qz" data-qid="u3-q2"><div class="qz-q">无锁、偏向、轻量、重量四种状态下 Mark Word 分别存什么？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>无锁：hashCode 31 位 + GC 年龄 4 位，偏向位 0，锁标志 01。偏向锁：持有线程的指针 54 位 + epoch + GC 年龄，偏向位 1，锁标志 01。轻量级锁：指向持锁线程栈上 Lock Record 的指针，锁标志 00。重量级锁：指向 ObjectMonitor 的指针，锁标志 10。</div></li><li class="qz" data-qid="u3-q3"><div class="qz-q">偏向锁为什么被废弃？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>撤销偏向要等全局安全点（STW），代价高；它只在“始终一个线程反复加锁”的场景收益明显，比如老式的 Vector、Hashtable，而现代应用多是线程池并发，收益很小；实现复杂、维护成本高。JDK 15 起默认关闭并废弃（JEP 374）。</div></li><li class="qz" data-qid="u3-q4"><div class="qz-q">调用过 hashCode 的对象，加锁会怎样？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>不能再进入偏向锁：hashCode 和线程指针要用 Mark Word 里同一块位置，只能留一个。这样的对象加锁直接走轻量级锁；如果对象正处于偏向状态时调用 hashCode，偏向会被撤销。轻量级锁和重量级锁没有这个问题，原 Mark Word 保存在 Lock Record 或 monitor 里。</div></li><li class="qz" data-qid="u3-q5"><div class="qz-q">为什么 synchronized 是非公平的？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>释放锁时被唤醒的线程，要和刚好到达、正在自旋的新线程一起竞争，新线程往往先抢到；而且新来的等锁线程先压进 <code>_cxq</code>（后进先出），本身就不是严格的先来先得。</div></li><li class="qz" data-qid="u3-q6"><div class="qz-q">用代码怎么证明 hashCode 存在 Mark Word 里？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>用 <code>Unsafe.getLong(obj, 0L)</code> 读出对象开头的 8 字节（就是 Mark Word），右移 8 位取 31 位，和 <code>obj.hashCode()</code> 的返回值比较。3.3 节在 JDK 17 上实测，两者都是 <code>0x5c647e05</code>。</div></li><li class="qz" data-qid="u3-q7"><div class="qz-q">只有一个线程、在锁里调用一次 wait()，锁会变成什么状态？为什么？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden><b>重量级锁</b>（锁标志 10）。WaitSet 只存在于 ObjectMonitor 里，轻量级锁没有地方放等待的线程，所以调用 wait 会强制锁膨胀，哪怕根本没有竞争（3.3 节 MarkWordDemo 第 6、7 行）。</div></li></ol>
+</section></div><!--PAGER-u3--></article>
+  </main>
+</div>
+
+<script>
+(() => {
+'use strict';
+const TOC = [{"id": "u1", "cn": "一", "title": "线程基础", "sections": [{"id": "u1-1", "title": "1.1 进程与线程"}, {"id": "u1-2", "title": "1.2 Java 线程和操作系统线程"}, {"id": "u1-3", "title": "1.3 并发、并行与“为什么用多线程”"}, {"id": "u1-4", "title": "1.4 创建线程：写法很多，本质只有一种"}, {"id": "u1-5", "title": "1.5 底层预备：线程在等什么——对象头与 Monitor"}, {"id": "u1-6", "title": "1.6 六种状态"}, {"id": "u1-7", "title": "1.7 sleep 与 wait"}, {"id": "u1-8", "title": "1.8 notify 与 notifyAll"}, {"id": "u1-9", "title": "1.9 中断与停止线程"}, {"id": "u1-10", "title": "1.10 线程间通信与其他"}, {"id": "u1-interview", "title": "面试这样说"}, {"id": "u1-quiz", "title": "自测"}]}, {"id": "u2", "cn": "二", "title": "JMM 与 volatile", "sections": [{"id": "u2-0", "title": "2.0 先看现象：两段会出错的代码"}, {"id": "u2-1", "title": "2.1 三大问题的根源"}, {"id": "u2-2", "title": "2.2 底层预备：从 CPU 缓存到 JMM"}, {"id": "u2-3", "title": "2.3 重排序与 as-if-serial"}, {"id": "u2-4", "title": "2.4 happens-before：JMM 给的承诺"}, {"id": "u2-5", "title": "2.5 volatile 的底层：内存屏障"}, {"id": "u2-6", "title": "2.6 volatile 不保证原子性"}, {"id": "u2-7", "title": "2.7 DCL 单例：为什么已经有 synchronized 还要 volatile"}, {"id": "u2-8", "title": "2.8 volatile 与 synchronized 对比"}, {"id": "u2-9", "title": "2.9 保证线程安全的三类手段（总览）"}, {"id": "u2-interview", "title": "面试这样说"}, {"id": "u2-quiz", "title": "自测"}]}, {"id": "u3", "cn": "三", "title": "synchronized", "sections": [{"id": "u3-1", "title": "3.1 三种用法，锁的分别是谁"}, {"id": "u3-2", "title": "3.2 字节码层面"}, {"id": "u3-3", "title": "3.3 Mark Word 的完整布局：把锁状态打印出来"}, {"id": "u3-4", "title": "3.4 ObjectMonitor：重量级锁的实体"}, {"id": "u3-5", "title": "3.5 锁升级全过程"}, {"id": "u3-6", "title": "3.6 JVM 对 synchronized 的其他优化"}, {"id": "u3-7", "title": "3.7 synchronized 与 ReentrantLock"}, {"id": "u3-interview", "title": "面试这样说"}, {"id": "u3-quiz", "title": "自测"}]}];
+const DOC_URL = 'https://github.com/erha1499/learn-juc/blob/main/content/handbook.md';
+const LAB_URL = 'lab/index.html';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const RM = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)').matches : false;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const KW = new Set('public private protected static final void int long boolean new synchronized while if else return for try catch true false null volatile this class extends throw'.split(' '));
+function hiJava(src) {
+  const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|\b([A-Za-z_][A-Za-z0-9_]*)\b|\b(\d+)\b/g;
+  let out = '', last = 0, m;
+  while ((m = re.exec(src))) {
+    out += esc(src.slice(last, m.index));
+    if (m[1]) out += '<span class="c-com">' + esc(m[1]) + '</span>';
+    else if (m[2]) out += '<span class="c-str">' + esc(m[2]) + '</span>';
+    else if (m[3]) out += KW.has(m[3]) ? '<span class="c-kw">' + m[3] + '</span>' : (/^[A-Z]/.test(m[3]) ? '<span class="c-ty">' + m[3] + '</span>' : m[3]);
+    else if (m[4]) out += '<span class="c-num">' + m[4] + '</span>';
+    last = re.lastIndex;
+  }
+  return out + esc(src.slice(last));
+}
+const TCOL = {A: 't1', B: 't2', C: 't3', T1: 't1', T2: 't2', T3: 't3', T4: 't4', main: 't3', waiter: 't1', owner: 't2', blocked: 't3', t: 't1'};
+const th = (t, key) => '<span class="th" style="--c:var(--' + (TCOL[t] || 't1') + ')"' + (key ? ' data-flip="' + key + '"' : '') + '>' + t + '</span>';
+const PILL = {RUNNABLE: 'ok', BLOCKED: 'bad', WAITING: 'wait', TIMED_WAITING: 'wait', NEW: 'idle', TERMINATED: 'idle'};
+const pill = st => '<span class="pill ' + (PILL[st] || 'idle') + '">' + st + '</span>';
+const chg = (step, k) => (step && step.chg && step.chg.includes(k) ? ' chg' : '');
+
+function flip(container, update) {
+  const before = {};
+  if (!RM) $$('[data-flip]', container).forEach(el => { before[el.dataset.flip] = el.getBoundingClientRect(); });
+  update();
+  if (RM || !container.offsetParent) return;
+  $$('[data-flip]', container).forEach(el => {
+    if (!el.animate) return;
+    const b = before[el.dataset.flip], a = el.getBoundingClientRect();
+    if (!b) { el.animate([{opacity: 0, transform: 'scale(.8)'}, {opacity: 1, transform: 'none'}], {duration: 320, easing: 'ease-out'}); return; }
+    const dx = b.left - a.left, dy = b.top - a.top;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) el.animate([{transform: 'translate(' + dx + 'px,' + dy + 'px)'}, {transform: 'none'}], {duration: 560, easing: 'cubic-bezier(.2,.75,.2,1)'});
+  });
+}
+function codePanel(p, hl) {
+  const marks = {};
+  (hl || []).forEach(h => {
+    if (h.p !== p.id) return;
+    let idx = h.i;
+    if (idx == null) {
+      idx = p.lines.findIndex(L => L.includes(h.f));
+      if (idx < 0 && window.console) console.warn('高亮行没找到：', h.f);
+    }
+    if (idx >= 0) marks[idx] = h.t || 'A';
+  });
+  const body = p.lines.map((L, i) => {
+    const m = marks[i];
+    return '<div class="ln' + (m ? ' hl' : '') + '"' + (m ? ' style="--c:var(--' + TCOL[m] + ')"' : '') + '><span class="no">' + (p.nums ? esc(p.nums[i]) : i + 1) + '</span><span class="tx">' + ((p.plain ? esc(L) : hiJava(L)) || ' ') + '</span>' + (m ? '<span class="who">' + m + '</span>' : '') + '</div>';
+  }).join('');
+  return '<div class="code"><div class="code-h">' + esc(p.title) + '</div><div class="code-b">' + body + '</div></div>';
+}
+function scrollHl(col) {
+  $$('.code-b', col).forEach(b => {
+    const el = $('.hl', b);
+    if (!el) return;
+    const top = el.offsetTop;
+    if (top < b.scrollTop + 8 || top > b.scrollTop + b.clientHeight - 40) b.scrollTop = Math.max(0, top - b.clientHeight / 3);
+  });
+}
+function zones(mon) {
+  const z = (cls, k, list, sub) => '<div class="zone ' + cls + '"><div class="zk">' + k + '</div><div class="toks">' + (list.length ? list.map(t => th(t, 'tok-' + t)).join('') : '<span class="none">空</span>') + '</div><div class="zs">' + sub + '</div></div>';
+  return '<div class="zones">' + z('z-owner', 'Owner', mon.owner ? [mon.owner] : [], '持有锁的线程') + z('z-entry', 'EntryList', mon.entry, '等锁 · BLOCKED') + z('z-wait', 'WaitSet', mon.wait, '调用了 wait · WAITING') + '</div>';
+}
+function thrTable(names, tmap, st) {
+  return '<div class="tbl-wrap"><table class="thr"><thead><tr><th>线程</th><th>状态</th><th>jstack 里能看到</th></tr></thead><tbody>' + names.map(t => {
+    const x = tmap[t];
+    return '<tr class="' + chg(st, 'th' + t).trim() + '"><td>' + th(t) + '</td><td>' + pill(x.st) + (x.note ? '<div class="tn">' + x.note + '</div>' : '') + '</td><td><code class="js">' + esc(x.js || '—') + '</code></td></tr>';
+  }).join('') + '</tbody></table></div>';
+}
+const TS = (st, js, note) => ({st, js: js || '', note: note || ''});
+
+/* ===================== 键盘 / 活动演示 ===================== */
+let ACTIVE = null;
+const STOPPERS = [];
+function setActive(l) { if (ACTIVE === l) return; if (ACTIVE) ACTIVE.classList.remove('is-active'); ACTIVE = l; l.classList.add('is-active'); }
+document.addEventListener('pointerdown', e => { const l = e.target.closest('.lab'); if (l) setActive(l); }, true);
+document.addEventListener('focusin', e => { const l = e.target.closest('.lab'); if (l) setActive(l); });
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || !ACTIVE || !ACTIVE.offsetParent || !ACTIVE._key) return;
+  const tg = e.target, tag = tg && tg.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+  if (e.key === ' ' && tag === 'BUTTON') return;
+  if (ACTIVE._key(e)) e.preventDefault();
+});
+
+/* ===================== 逐步演示引擎 ===================== */
+function labTop(cfg) {
+  return '<div class="lab-top"><span class="lab-kind">动手 · ' + (cfg.kind || '逐步演示') + '</span><h3 class="lab-title">' + cfg.title + '</h3>' + (cfg.intro ? '<p class="lab-intro">' + cfg.intro + '</p>' : '') + '</div>';
+}
+function stepLab(root, cfg) {
+  root.classList.add('lab');
+  const seg = cfg.variants ? '<div class="seg" role="group" aria-label="' + cfg.variantLabel + '">' + cfg.variants.map(v => '<button type="button" data-v="' + v.key + '">' + v.label + '</button>').join('') + '</div>' : '<span></span>';
+  root.innerHTML = labTop(cfg) +
+    '<div class="narr" aria-live="polite"><div class="narr-k"></div><p class="narr-t"></p><p class="narr-p"></p></div>' +
+    '<div class="ctrl">' + seg + '<div class="btns"><button type="button" class="btn b-prev">← 上一步</button><button type="button" class="btn b-play">▶ 自动播放</button><button type="button" class="btn primary b-next">下一步 →</button><button type="button" class="btn ghost b-reset">从头开始</button></div></div>' +
+    '<ol class="dots"></ol>' +
+    '<div class="bench' + (cfg.stack ? ' stack' : '') + '">' + (cfg.code ? '<div class="code-col"></div>' : '') + '<div class="stage"></div></div>';
+  const q = s => $(s, root);
+  const codeCol = q('.code-col'), stage = q('.stage'), K = q('.narr-k'), T = q('.narr-t'), P = q('.narr-p'), dots = q('.dots');
+  const bPrev = q('.b-prev'), bNext = q('.b-next'), bPlay = q('.b-play');
+  const S = {v: cfg.variants ? cfg.variants[0].key : null, i: 0, timer: null};
+  let steps = cfg.steps(S.v);
+  function render() {
+    const st = steps[S.i];
+    if (codeCol) { codeCol.innerHTML = cfg.code(S.v).map(p => codePanel(p, st.hl)).join(''); scrollHl(codeCol); }
+    flip(stage, () => { stage.innerHTML = cfg.stage(st.s, st, S.v); });
+    K.textContent = '第 ' + (S.i + 1) + ' / ' + steps.length + ' 步';
+    T.textContent = st.t;
+    P.innerHTML = st.d;
+    dots.innerHTML = steps.map((s, i) => '<li><button type="button" data-i="' + i + '" class="' + (i === S.i ? 'on' : i < S.i ? 'past' : '') + '" aria-label="第 ' + (i + 1) + ' 步：' + esc(s.t) + '"' + (i === S.i ? ' aria-current="step"' : '') + '></button></li>').join('');
+    bPrev.disabled = S.i === 0;
+    bNext.disabled = S.i === steps.length - 1;
+    bPlay.textContent = S.timer ? '⏸ 暂停' : (S.i === steps.length - 1 ? '↻ 从头播放' : '▶ 自动播放');
+    $$('.seg button', root).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.v ? 'true' : 'false'));
+  }
+  const go = i => { S.i = Math.max(0, Math.min(steps.length - 1, i)); render(); };
+  const stop = () => { if (S.timer) { clearInterval(S.timer); S.timer = null; } };
+  function play() {
+    if (S.timer) { stop(); render(); return; }
+    if (S.i === steps.length - 1) S.i = 0;
+    S.timer = setInterval(() => { if (S.i >= steps.length - 1) { stop(); render(); return; } go(S.i + 1); }, 3600);
+    render();
+  }
+  bPrev.onclick = () => { stop(); go(S.i - 1); };
+  bNext.onclick = () => { stop(); go(S.i + 1); };
+  bPlay.onclick = play;
+  q('.b-reset').onclick = () => { stop(); go(0); };
+  dots.onclick = e => { const b = e.target.closest('button'); if (b) { stop(); go(+b.dataset.i); } };
+  $$('.seg button', root).forEach(b => { b.onclick = () => { stop(); S.v = b.dataset.v; steps = cfg.steps(S.v); S.i = Math.min(S.i, steps.length - 1); render(); }; });
+  root._key = e => {
+    if (e.key === 'ArrowRight') { stop(); go(S.i + 1); return true; }
+    if (e.key === 'ArrowLeft') { stop(); go(S.i - 1); return true; }
+    if (e.key === ' ') { play(); return true; }
+    return false;
+  };
+  STOPPERS.push(() => { if (S.timer) { stop(); render(); } });
+  render();
+}
+
+/* ===================== 1.5 对象布局 ===================== */
+const LAYOUTS = [
+  {k: 'obj', label: 'new Object()', code: ['Object o = new Object();'], size: 16, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'pad', '对齐填充']],
+    note: '没有任何字段：对象头 8 + 4 = 12 字节，再补 4 字节凑成 8 的倍数。'},
+  {k: 'point', label: 'Point', code: ['class Point {', '    int x;', '}'], size: 16, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'field', 'int x']],
+    note: 'int x 正好填进对象头后面的 4 字节，不需要填充。x 的偏移量 12 是用 Unsafe.objectFieldOffset 实测的（3.3 节）。'},
+  {k: 'arr', label: 'new int[3]', code: ['int[] a = new int[3];'], size: 32, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'len', '长度 = 3'], [16, 4, 'field', 'a[0]'], [20, 4, 'field', 'a[1]'], [24, 4, 'field', 'a[2]'], [28, 4, 'pad', '对齐填充']],
+    note: '数组的对象头多 4 字节存长度，所以元素从第 16 字节开始（实测 arrayBaseOffset = 16）。12 + 4 + 3 × 4 = 28，补齐到 32。'},
+  {k: 'mixed', label: 'Mixed', code: ['class Mixed {', '    boolean flag;', '    int x;', '    long y;', '    Object ref;', '}'], size: 32, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'field', 'int x'], [16, 8, 'field', 'long y'], [24, 1, 'field', 'flag'], [25, 3, 'pad', '空隙'], [28, 4, 'ref', 'Object ref']],
+    note: '字段在内存里的顺序和源码不一样。JVM 先用 int x 填满对象头后面的 4 字节；long y 要按 8 字节对齐，放在 16；boolean 放在 24；引用开启压缩指针后占 4 字节，放在 28，中间空出 3 字节。这些偏移量都是在 JDK 17 上用 Unsafe.objectFieldOffset 实测的。'}
+];
+const KC = {mark: 'k-mark', klass: 'k-klass', len: 'k-len', field: 'k-field', ref: 'k-ref', pad: 'k-pad'};
+function objLayout(root) {
+  root.classList.add('lab');
+  let cur = 0;
+  root.innerHTML = labTop({kind: '内存布局计算器', title: '一个对象到底占几个字节？', intro: '选一个对象，看它在堆里每个字节放的是什么。数字都是 64 位 JDK 17、默认开启压缩指针时实测的。'}) +
+    '<div class="ctrl"><div class="seg" role="group" aria-label="对象类型">' + LAYOUTS.map((L, i) => '<button type="button" data-i="' + i + '">' + esc(L.label) + '</button>').join('') + '</div></div>' +
+    '<div class="bench"><div class="code-col"></div><div class="stage"></div></div>';
+  const render = () => {
+    const L = LAYOUTS[cur];
+    $('.code-col', root).innerHTML = codePanel({id: 'c', title: '源码', lines: L.code}, []);
+    let rows = '';
+    for (let off = 0; off < L.size; off += 8) {
+      const cells = L.parts.filter(p => p[0] >= off && p[0] < off + 8).map(p => '<div class="bpart' + (p[2] === 'pad' ? ' pad' : '') + '" style="grid-column:span ' + p[1] + ';--kc:var(--' + KC[p[2]] + ')" title="' + esc(p[3]) + '，第 ' + p[0] + '~' + (p[0] + p[1] - 1) + ' 字节"><b>' + esc(p[3]) + '</b><span>' + p[1] + ' 字节</span></div>').join('');
+      rows += '<div class="brow"><span class="boff">+' + off + '</span><div class="bcells">' + cells + '</div></div>';
+    }
+    $('.stage', root).innerHTML = '<div class="box"><div class="box-h">每行 8 字节，左边是行首的偏移量</div><div class="bytemap">' + rows + '</div><div class="total"><span class="rk">总大小</span><b>' + L.size + ' 字节</b><span class="note">Instrumentation.getObjectSize 实测也是 ' + L.size + '</span></div></div><p class="narr-p" style="margin-top:10px">' + esc(L.note) + '</p>';
+    $$('.seg button', root).forEach((b, i) => b.setAttribute('aria-pressed', i === cur ? 'true' : 'false'));
+  };
+  $$('.seg button', root).forEach((b, i) => { b.onclick = () => { cur = i; render(); }; });
+  root._key = e => {
+    if (e.key === 'ArrowRight') { cur = Math.min(LAYOUTS.length - 1, cur + 1); render(); return true; }
+    if (e.key === 'ArrowLeft') { cur = Math.max(0, cur - 1); render(); return true; }
+    return false;
+  };
+  render();
+}
+
+/* ===================== 1.5 MonitorStateDemo 逐步执行 ===================== */
+const ADDR = '<0x0000000697c1c210>';
+const MD_CODE = [
+  {id: 'waiter', title: '线程 waiter', lines: ['synchronized (lock) {', '    lock.wait();', '    System.out.println("waiter 被唤醒…");', '}']},
+  {id: 'owner', title: '线程 owner', lines: ['synchronized (lock) {', '    sleep(3000);', '    lock.notify();', '    sleep(3000);', '}']},
+  {id: 'blocked', title: '线程 blocked', lines: ['synchronized (lock) { }']}
+];
+function mdStage(s, st) {
+  return '<div class="stack-v"><div class="box"><div class="box-h">对象 lock 的 ObjectMonitor</div>' + zones(s.mon) + '</div>' +
+    '<div class="box"><div class="box-h">三个线程此刻的状态</div>' + thrTable(['waiter', 'owner', 'blocked'], s.th, st) + '</div>' +
+    (s.out ? '<div class="box"><div class="box-h">对应程序输出</div><code style="font-size:12.5px">' + esc(s.out) + '</code></div>' : '') + '</div>';
+}
+function mdSteps() {
+  const L = '- locked ' + ADDR, WTL = '- waiting to lock ' + ADDR, WON = '- waiting on ' + ADDR, RL = '- waiting to re-lock in wait() ' + ADDR;
+  const N = TS('NEW', '', '还没执行到这里');
+  return [
+    {t: 'waiter 先拿到锁', d: 'waiter 进入同步块，成为 Owner。为了看清结构，这里直接画出了 ObjectMonitor；单元三会讲到，没有竞争时其实先用轻量级锁，调用 wait 的那一刻才会膨胀出 monitor。', hl: [{p: 'waiter', i: 0, t: 'waiter'}], chg: ['thwaiter'],
+      s: {mon: {owner: 'waiter', entry: [], wait: []}, th: {waiter: TS('RUNNABLE', L, '持有锁'), owner: N, blocked: N}}},
+    {t: 'waiter 调用 wait()：让出锁，进 WaitSet', d: 'waiter 把锁让出来，自己进入 <b>WaitSet</b>，状态变成 WAITING。Owner 空了。', hl: [{p: 'waiter', i: 1, t: 'waiter'}], chg: ['thwaiter'],
+      s: {mon: {owner: null, entry: [], wait: ['waiter']}, th: {waiter: TS('WAITING', WON, '在 WaitSet 等通知'), owner: N, blocked: N}}},
+    {t: 'owner 拿到锁，拿着锁睡觉', d: 'owner 成为 Owner 后调用 sleep(3000)。它的状态是 TIMED_WAITING，却仍然占着 Owner 的位置：<b>sleep 不释放锁</b>。', hl: [{p: 'owner', i: 0, t: 'owner'}, {p: 'owner', i: 1, t: 'owner'}], chg: ['thowner'],
+      s: {mon: {owner: 'owner', entry: [], wait: ['waiter']}, th: {waiter: TS('WAITING', WON, '在 WaitSet 等通知'), owner: TS('TIMED_WAITING', L, '在 sleep，但仍持有锁'), blocked: N}}},
+    {t: 'blocked 来抢锁：进 EntryList', d: 'blocked 抢不到锁，进入 <b>EntryList</b>，状态 BLOCKED。这一刻正是程序输出的“阶段一”。', hl: [{p: 'blocked', i: 0, t: 'blocked'}], chg: ['thblocked'],
+      s: {mon: {owner: 'owner', entry: ['blocked'], wait: ['waiter']}, out: '阶段一  owner=TIMED_WAITING  blocked=BLOCKED  waiter=WAITING', th: {waiter: TS('WAITING', WON, '在 WaitSet 等通知'), owner: TS('TIMED_WAITING', L, '在 sleep，但仍持有锁'), blocked: TS('BLOCKED', WTL, '在 EntryList 等锁')}}},
+    {t: 'owner 调用 notify()：waiter 被挪回 EntryList', d: 'notify 只是把 waiter 从 WaitSet 挪到 EntryList，<b>并没有把锁交给它</b>。waiter 从 WAITING 变成 BLOCKED，这就是“阶段二”。owner 接着又睡 3 秒，锁还在它手里。', hl: [{p: 'owner', i: 2, t: 'owner'}, {p: 'owner', i: 3, t: 'owner'}], chg: ['thwaiter'],
+      s: {mon: {owner: 'owner', entry: ['blocked', 'waiter'], wait: []}, out: '阶段二  owner=TIMED_WAITING  blocked=BLOCKED  waiter=BLOCKED', th: {waiter: TS('BLOCKED', RL, '回到 EntryList 重新排队'), owner: TS('TIMED_WAITING', L, '在 sleep，但仍持有锁'), blocked: TS('BLOCKED', WTL, '在 EntryList 等锁')}}},
+    {t: 'owner 退出同步块：锁空出来', d: 'owner 释放锁，并从 EntryList 叫醒一个线程。叫醒谁、谁先抢到，JVM 都不做保证。', hl: [{p: 'owner', i: 4, t: 'owner'}], chg: ['thowner'],
+      s: {mon: {owner: null, entry: ['blocked', 'waiter'], wait: []}, th: {waiter: TS('BLOCKED', RL, '正在抢锁'), owner: TS('TERMINATED', '', '线程结束'), blocked: TS('BLOCKED', WTL, '正在抢锁')}}},
+    {t: 'blocked 先抢到了锁', d: '这次是 blocked 先抢到（再运行一次也可能是 waiter）。它的同步块是空的，马上就退出了。', hl: [{p: 'blocked', i: 0, t: 'blocked'}], chg: ['thblocked'],
+      s: {mon: {owner: 'blocked', entry: ['waiter'], wait: []}, th: {waiter: TS('BLOCKED', RL, '还在等锁'), owner: TS('TERMINATED', '', '线程结束'), blocked: TS('RUNNABLE', L, '持有锁')}}},
+    {t: 'waiter 重新拿到锁，从 wait() 返回', d: 'waiter 抢到锁，从 wait() 的下一行继续，打印出程序输出的最后一行。', hl: [{p: 'waiter', i: 2, t: 'waiter'}], chg: ['thwaiter'],
+      s: {mon: {owner: 'waiter', entry: [], wait: []}, out: 'waiter 被唤醒并重新拿到了锁', th: {waiter: TS('RUNNABLE', L, '持有锁'), owner: TS('TERMINATED', '', '线程结束'), blocked: TS('TERMINATED', '', '线程结束')}}}
+  ];
+}
+
+/* ===================== 1.6 线程状态机 ===================== */
+const SMN = {NEW: [115, 54, 150], RUNNABLE: [380, 54, 150], TERMINATED: [645, 54, 150], BLOCKED: [140, 236, 150], WAITING: [380, 236, 150], TIMED_WAITING: [620, 236, 170]};
+const SME = {
+  NR: 'M190 54 H305', RX: 'M455 54 H570',
+  RB: 'M330 78 L170 212', BR: 'M195 212 L350 78',
+  RW: 'M370 78 V212', WR: 'M390 212 V78',
+  RT: 'M410 78 L585 212', TR: 'M610 212 L432 78',
+  WB: 'M305 244 H215', TB: 'M620 260 C620 292 140 292 140 260'
+};
+const SM_JS = {NEW: '（还没有对应的系统线程）', RUNNABLE: 'java.lang.Thread.State: RUNNABLE', BLOCKED: 'BLOCKED (on object monitor)', TERMINATED: '（线程已结束，jstack 里看不到它）'};
+function smJs(st, via) {
+  if (st === 'WAITING') return via === 'park' ? 'WAITING (parking)' : 'WAITING (on object monitor)';
+  if (st === 'TIMED_WAITING') return via === 'sleep' ? 'TIMED_WAITING (sleeping)' : 'TIMED_WAITING (on object monitor)';
+  return SM_JS[st];
+}
+function smActions(st, via) {
+  switch (st) {
+    case 'NEW': return [['t.start()', 'RUNNABLE', null, 'NR', 'start() 让 JVM 创建一个内核线程，线程进入 RUNNABLE。RUNNABLE 同时包含操作系统里的“就绪”和“运行中”，Java 不区分这两者。']];
+    case 'RUNNABLE': return [
+      ['进入 synchronized，锁被别人占着', 'BLOCKED', null, 'RB', '抢 monitor 失败，进入 EntryList。<b>BLOCKED 只在等 synchronized 的锁时出现。</b>'],
+      ['lock.wait()', 'WAITING', 'wait', 'RW', '释放锁，进入对象的 WaitSet，等别人 notify。'],
+      ['LockSupport.park()（比如等 ReentrantLock）', 'WAITING', 'park', 'RW', '被 park 挂起。等 ReentrantLock 的线程就是这个状态，jstack 显示 WAITING (parking)，<b>不是 BLOCKED</b>。'],
+      ['other.join()', 'WAITING', 'join', 'RW', '等另一个线程结束。join 的底层是 while (isAlive()) wait(0)，所以它也是在一个对象的 monitor 上等待。'],
+      ['Thread.sleep(100)', 'TIMED_WAITING', 'sleep', 'RT', '带超时地睡眠。注意：如果手里拿着锁，sleep 不会释放它。'],
+      ['lock.wait(100)', 'TIMED_WAITING', 'waitn', 'RT', '带超时的 wait：释放锁，进 WaitSet，最多等 100 毫秒。'],
+      ['run() 执行完', 'TERMINATED', null, 'RX', 'run 正常结束或抛出了没被捕获的异常，线程终止。']];
+    case 'BLOCKED': return [['持锁线程释放了锁，抢到了', 'RUNNABLE', null, 'BR', '拿到 monitor，成为 Owner，回到 RUNNABLE。']];
+    case 'WAITING':
+      if (via === 'park') return [['别的线程 unpark(它)', 'RUNNABLE', null, 'WR', '拿到许可证，从 park 返回。'], ['被 interrupt()', 'RUNNABLE', null, 'WR', 'park 被中断时直接返回，不抛异常，也不清除中断标志。']];
+      if (via === 'join') return [['被等待的线程结束了', 'RUNNABLE', null, 'WR', '线程结束时 JVM 会对它调用 notifyAll，join 随之返回。']];
+      return [['别的线程 notify()', 'BLOCKED', 'relock', 'WB', '从 WaitSet 挪到 EntryList。它要<b>重新抢锁</b>，所以先变成 BLOCKED，不是直接 RUNNABLE。'], ['被 interrupt()', 'BLOCKED', 'relock', 'WB', '被中断也要先重新拿到锁，拿到后再从 wait() 抛出 InterruptedException。']];
+    case 'TIMED_WAITING':
+      if (via === 'sleep') return [['100 毫秒到了', 'RUNNABLE', null, 'TR', '睡够了，自动回到 RUNNABLE。'], ['被 interrupt()', 'RUNNABLE', null, 'TR', '从 sleep 中醒来，清除中断标志，并抛出 InterruptedException。']];
+      return [['超时了', 'BLOCKED', 'relock', 'TB', '超时后同样要先重新抢锁，所以变成 BLOCKED。'], ['别的线程 notify()', 'BLOCKED', 'relock', 'TB', '被挪回 EntryList，变成 BLOCKED，等着重新抢锁。']];
+    case 'TERMINATED': return [['再调用一次 t.start()', 'TERMINATED', null, null, '抛出 IllegalThreadStateException：一个线程对象只能 start 一次，状态不会变。'], ['new 一个新线程重来', 'NEW', null, null, '重新开始。']];
+  }
+  return [];
+}
+function stateMachine(root) {
+  root.classList.add('lab');
+  const S = {st: 'NEW', via: null, edge: null, msg: '线程对象刚 new 出来，还没调用 start()。点下面的操作，看它怎么在 6 种状态之间转换。', hist: ['NEW']};
+  root.innerHTML = labTop({kind: '可以点的状态机', title: '线程的 6 种状态是怎么转换的', intro: '每次只能点当前状态下真实存在的操作。留意两个容易错的地方：被 notify 的线程先变成 BLOCKED；等 ReentrantLock 的线程是 WAITING。'}) +
+    '<div class="sm-wrap"></div><div class="narr"><div class="narr-k"></div><p class="narr-t"></p><p class="narr-p"></p></div><div class="sm-acts"></div><div class="sm-hist"></div>';
+  const svgEl = () => {
+    const nodes = Object.entries(SMN).map(([k, [cx, cy, w]]) => '<g class="sm-node' + (k === S.st ? ' cur' : '') + '"><rect x="' + (cx - w / 2) + '" y="' + (cy - 24) + '" width="' + w + '" height="48" rx="10"/><text x="' + cx + '" y="' + (cy + 5) + '" text-anchor="middle">' + k + '</text></g>').join('');
+    const edges = Object.entries(SME).map(([k, d]) => '<path class="sm-edge' + (k === S.edge ? ' on' : '') + '" d="' + d + '" marker-end="url(#' + (k === S.edge ? 'sm-a-on' : 'sm-a') + ')"/>').join('');
+    return '<svg class="sm-svg" viewBox="0 0 760 316" role="img" aria-label="线程状态转换图，当前状态 ' + S.st + '"><defs><marker id="sm-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="sm-arrow" d="M0 0L10 5L0 10z"/></marker><marker id="sm-a-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="sm-arrow-on" d="M0 0L10 5L0 10z"/></marker></defs>' + edges + nodes +
+      '<text class="sm-lbl" x="247" y="44" text-anchor="middle">start()</text><text class="sm-lbl" x="512" y="44" text-anchor="middle">run 结束</text><text class="sm-lbl" x="260" y="236" text-anchor="middle">notify</text><text class="sm-lbl" x="380" y="306" text-anchor="middle">wait(n) 超时 / notify</text></svg>';
+  };
+  const render = () => {
+    $('.sm-wrap', root).innerHTML = svgEl();
+    $('.narr-k', root).textContent = '当前状态';
+    $('.narr-t', root).innerHTML = pill(S.st) + ' <code style="font-size:12.5px;color:var(--ink-3)">' + esc(smJs(S.st, S.via)) + '</code>';
+    $('.narr-p', root).innerHTML = S.msg;
+    $('.sm-acts', root).innerHTML = smActions(S.st, S.via).map((a, i) => '<button type="button" class="btn' + (i === 0 ? ' primary' : '') + '" data-i="' + i + '">' + esc(a[0]) + '</button>').join('');
+    $('.sm-hist', root).textContent = '走过的路径：' + S.hist.join(' → ');
+  };
+  root.addEventListener('click', e => {
+    const b = e.target.closest('.sm-acts button');
+    if (!b) return;
+    const a = smActions(S.st, S.via)[+b.dataset.i];
+    if (a[1] === 'NEW') { S.st = 'NEW'; S.via = null; S.edge = null; S.msg = a[4]; S.hist = ['NEW']; render(); return; }
+    const was = S.st;
+    S.st = a[1]; S.via = a[2] || (a[1] === 'WAITING' || a[1] === 'TIMED_WAITING' ? S.via : null); S.edge = a[3]; S.msg = a[4];
+    if (was !== S.st) S.hist.push(S.st); else S.hist.push('(' + S.st + ')');
+    if (S.hist.length > 9) S.hist = ['…'].concat(S.hist.slice(-8));
+    render();
+  });
+  render();
+}
+
+/* ===================== 1.8 notify vs notifyAll ===================== */
+const NT_CODE = v => [{id: 'X', title: 'A、B、C 三个线程都执行这段代码（myTurn 分别是 0、1、2）', lines: [
+  'synchronized (lock) {',
+  '    while (state != myTurn) {',
+  '        lock.wait();',
+  '    }',
+  '    print(myName);',
+  '    state = (state + 1) % 3;',
+  v === 'one' ? '    lock.notify();       // 只叫醒一个' : '    lock.notifyAll();    // 叫醒全部',
+  '}']}];
+function ntStage(s, st) {
+  return '<div class="stack-v"><div class="grid2"><div class="box kv' + chg(st, 'state') + '"><span class="rk">state（该谁打印）</span><b class="big">' + s.state + '</b><span class="note">' + ['轮到 A', '轮到 B', '轮到 C'][s.state] + '</span></div>' +
+    '<div class="box kv' + chg(st, 'out') + '"><span class="rk">已经打印</span><b class="big" style="font-size:22px">' + (s.out || '—') + '</b></div></div>' +
+    '<div class="box"><div class="box-h">对象 lock 的 monitor</div>' + zones(s.mon) + '</div>' + (s.v ? '<div class="verdict ' + s.v[0] + '">' + s.v[1] + '</div>' : '') + '</div>';
+}
+function ntSteps(v) {
+  const X = 'X';
+  const head = [
+    {t: '起点：轮到 A，B 和 C 在 WaitSet 里等', d: 'state = 0，只有 A 的条件成立。B 和 C 先来过，发现没轮到自己，都 wait 进了 WaitSet。现在 A 是 Owner。', hl: [{p: X, i: 1, t: 'A'}],
+      s: {state: 0, out: '', mon: {owner: 'A', entry: [], wait: ['B', 'C']}}},
+    {t: 'A 打印 A，把 state 改成 1', d: '现在该轮到 B 了。A 要通知等待的人。', hl: [{p: X, i: 4, t: 'A'}, {p: X, i: 5, t: 'A'}], chg: ['state', 'out'],
+      s: {state: 1, out: 'A', mon: {owner: 'A', entry: [], wait: ['B', 'C']}}}
+  ];
+  if (v === 'one') return head.concat([
+    {t: 'A 调用 notify()：JVM 挑中了 C', d: 'notify 只叫醒一个线程，叫醒哪个由 JVM 决定。这次挑中了 C，可现在该轮到的是 B。', hl: [{p: X, i: 6, t: 'A'}],
+      s: {state: 1, out: 'A', mon: {owner: 'A', entry: ['C'], wait: ['B']}}},
+    {t: 'A 退出，C 抢到锁', d: 'A 释放锁，EntryList 里只有 C，C 成为 Owner，回到 while 检查条件。', hl: [{p: X, i: 7, t: 'A'}, {p: X, i: 1, t: 'C'}],
+      s: {state: 1, out: 'A', mon: {owner: 'C', entry: [], wait: ['B']}}},
+    {t: 'C 发现没轮到自己，又睡回去', d: 'state = 1 不等于 C 的 2，C 再次 wait。它没有调用 notify，因为它根本没走到那一行。', hl: [{p: X, i: 2, t: 'C'}],
+      s: {state: 1, out: 'A', mon: {owner: null, entry: [], wait: ['B', 'C']}}},
+    {t: 'A 下一轮回来，也没轮到它：全员卡死', d: 'A 的循环进入下一轮，state = 1 不等于 0，A 也 wait 了。三个线程全在 WaitSet 里，没有任何线程会再调用 notify。<b>B 明明该打印了，却永远等不到通知。</b>', hl: [{p: X, i: 2, t: 'A'}],
+      s: {state: 1, out: 'A', mon: {owner: null, entry: [], wait: ['B', 'C', 'A']}, v: ['bad', '程序卡死：jstack 里三个线程都是 WAITING (on object monitor)，等在同一个对象上。线程数 ≥ 3 时用 notify，就可能叫醒“错的人”。']}}
+  ]);
+  return head.concat([
+    {t: 'A 调用 notifyAll()：B 和 C 全被挪到 EntryList', d: 'notifyAll 把 WaitSet 里的线程全部挪到 EntryList，让它们自己去抢锁、自己检查条件。', hl: [{p: X, i: 6, t: 'A'}],
+      s: {state: 1, out: 'A', mon: {owner: 'A', entry: ['B', 'C'], wait: []}}},
+    {t: 'A 退出，C 先抢到锁', d: '谁先抢到不确定，这次是 C。', hl: [{p: X, i: 7, t: 'A'}, {p: X, i: 1, t: 'C'}],
+      s: {state: 1, out: 'A', mon: {owner: 'C', entry: ['B'], wait: []}}},
+    {t: 'C 没轮到自己，又睡回去', d: 'state = 1 不等于 2，C 再次 wait，把锁让出来。这就是 while 的作用：醒来后必须重新检查条件。', hl: [{p: X, i: 2, t: 'C'}],
+      s: {state: 1, out: 'A', mon: {owner: null, entry: ['B'], wait: ['C']}}},
+    {t: 'B 抢到锁：这次轮到它了', d: 'state = 1 正好等于 B 的 myTurn，跳出 while。', hl: [{p: X, i: 1, t: 'B'}, {p: X, i: 4, t: 'B'}],
+      s: {state: 1, out: 'A', mon: {owner: 'B', entry: [], wait: ['C']}}},
+    {t: 'B 打印 B，再 notifyAll', d: 'state 变成 2，C 被挪回 EntryList，接下来就轮到它。程序会一直这样转下去。', hl: [{p: X, i: 5, t: 'B'}, {p: X, i: 6, t: 'B'}], chg: ['state', 'out'],
+      s: {state: 2, out: 'A B', mon: {owner: 'B', entry: ['C'], wait: []}, v: ['ok', '不会卡死。代价是每次都把所有人叫醒，没轮到的线程白醒一次又睡回去。想只叫醒下一个线程，要用 ReentrantLock 的多个 Condition（单元六、11.1 节写法二）。']}}
+  ]);
+}
+
+/* ===================== 1.9 中断标志 ===================== */
+const IT_CODE = v => [
+  {id: 't', title: '线程 t', lines: [
+    'while (!Thread.currentThread().isInterrupted()) {',
+    '    try {',
+    '        doWork();',
+    '        Thread.sleep(100);',
+    '    } catch (InterruptedException e) {',
+    v === 'keep' ? '        Thread.currentThread().interrupt();  // 恢复标志' : '        // 什么都没做',
+    '    }',
+    '}']},
+  {id: 'main', title: 'main 线程', lines: ['t.start();', 't.interrupt();   // 请求 t 停下']}
+];
+function itStage(s, st) {
+  return '<div class="stack-v"><div class="grid2"><div class="box kv"><span class="rk">线程 t 的状态</span><span>' + pill(s.st) + '</span><span class="note">' + s.where + '</span></div>' +
+    '<div class="box kv' + chg(st, 'flag') + '"><span class="rk">t 的中断标志位</span><b class="big">' + s.flag + '</b><span class="note">' + (s.flag ? '已被请求中断' : '没有中断请求') + '</span></div></div>' +
+    '<div class="box"><span class="rk">while 条件</span> <code>!isInterrupted()</code> → <code>' + (s.cond == null ? '—' : s.cond ? 'true，继续循环' : 'false，退出循环') + '</code></div>' + (s.v ? '<div class="verdict ' + s.v[0] + '">' + s.v[1] + '</div>' : '') + '</div>';
+}
+function itSteps(v) {
+  const base = [
+    {t: 't 正在循环里干活，sleep 中', d: '中断标志是 0，while 条件成立。t 执行完 doWork() 后进入 sleep(100)，状态 TIMED_WAITING。', hl: [{p: 't', i: 0, t: 't'}, {p: 't', i: 3, t: 't'}],
+      s: {st: 'TIMED_WAITING', where: '阻塞在 sleep(100)', flag: 0, cond: true}},
+    {t: 'main 调用 t.interrupt()', d: 'interrupt 只做两件事：把 t 的中断标志置为 1；如果 t 正阻塞在 sleep、wait、join 上，就把它叫醒。它<b>不会强行停止线程</b>，是否停下由 t 自己决定。', hl: [{p: 'main', i: 1, t: 'main'}], chg: ['flag'],
+      s: {st: 'TIMED_WAITING', where: '被叫醒中', flag: 1, cond: null}},
+    {t: 'sleep 抛出异常，同时把标志清零', d: 't 在 sleep 内部醒来，发现中断标志是 1：<b>先把标志清成 0</b>，再抛出 InterruptedException，跳进 catch。', hl: [{p: 't', i: 3, t: 't'}, {p: 't', i: 4, t: 't'}], chg: ['flag'],
+      s: {st: 'RUNNABLE', where: '进入 catch', flag: 0, cond: null}}
+  ];
+  if (v === 'keep') return base.concat([
+    {t: 'catch 里恢复中断标志', d: '再调一次 interrupt()，把标志重新置为 1，把“有人要我停下”这件事传回给循环条件。', hl: [{p: 't', i: 5, t: 't'}], chg: ['flag'],
+      s: {st: 'RUNNABLE', where: '在 catch 里', flag: 1, cond: null}},
+    {t: 'while 读到中断，循环结束', d: 'isInterrupted() 返回 true，循环条件为 false，线程正常退出。', hl: [{p: 't', i: 0, t: 't'}],
+      s: {st: 'TERMINATED', where: '线程结束', flag: 1, cond: false, v: ['ok', '线程按请求停下了。这就是 1.9 节推荐写法的意义。']}}
+  ]);
+  return base.concat([
+    {t: 'catch 里什么都没做', d: '标志刚被 sleep 清成 0，catch 又没有恢复它。', hl: [{p: 't', i: 5, t: 't'}],
+      s: {st: 'RUNNABLE', where: '在 catch 里', flag: 0, cond: null}},
+    {t: 'while 读到 0，继续循环', d: 'isInterrupted() 返回 false，t 又进入下一轮 doWork() 和 sleep。', hl: [{p: 't', i: 0, t: 't'}, {p: 't', i: 3, t: 't'}],
+      s: {st: 'TIMED_WAITING', where: '又在 sleep 了', flag: 0, cond: true, v: ['bad', '中断请求被吞掉了：main 以为已经通知 t 停下，t 却完全不知道，会一直循环下去。']}}
+  ]);
+}
+
+/* ===================== 2.1 count++ 竞态（你来当调度器） ===================== */
+const PROG = {
+  plain: [{op: 'getfield count', k: 'read', h: '读'}, {op: 'iconst_1 + iadd', k: 'add', h: '加'}, {op: 'putfield count', k: 'write', h: '写回'}],
+  sync: [{op: 'monitorenter', k: 'enter', h: '加锁'}, {op: 'getfield count', k: 'read', h: '读'}, {op: 'iconst_1 + iadd', k: 'add', h: '加'}, {op: 'putfield count', k: 'write', h: '写回'}, {op: 'monitorexit', k: 'exit', h: '解锁'}]
+};
+const RACE_SRC = {
+  plain: {id: 'J', title: 'Counter.java · 两个线程各调一次 inc()', lines: ['class Counter {', '    int count = 0;', '    void inc() {', '        count++;', '    }', '}']},
+  sync: {id: 'J', title: 'Counter.java · 两个线程各调一次 inc()', lines: ['class Counter {', '    int count = 0;', '    void inc() {', '        synchronized (this) {', '            count++;', '        }', '    }', '}']}
+};
+function raceLab(root) {
+  root.classList.add('lab');
+  root.innerHTML = labTop({kind: '你来当调度器', title: 'count++ 为什么会丢', intro: '两个线程各执行一次 count++，正确结果是 2。点哪个线程，哪个线程就执行一条字节码。试试先让两个线程都“读”一次，再各自写回。'}) +
+    '<div class="narr" aria-live="polite"><div class="narr-k">刚刚发生了什么</div><p class="narr-t"></p><p class="narr-p"></p></div>' +
+    '<div class="ctrl"><div class="seg" role="group" aria-label="代码版本"><button type="button" data-v="plain">普通 count++</button><button type="button" data-v="sync">加 synchronized</button></div>' +
+    '<div class="btns"><button type="button" class="btn primary r-lost">演示：交错执行</button><button type="button" class="btn r-serial">演示：先后执行</button><button type="button" class="btn ghost r-reset">重来</button></div></div>' +
+    '<div class="bench"><div class="code-col"><div class="r-src"></div><div class="box"><div class="box-h">执行记录（最新在上）</div><ol class="log r-log"></ol></div></div><div class="stage"></div></div>';
+  const stage = $('.stage', root), src = $('.r-src', root), logEl = $('.r-log', root), T = $('.narr-t', root), P = $('.narr-p', root);
+  let R, auto = null;
+  const stopAuto = () => { if (auto) { clearInterval(auto); auto = null; } };
+  function reset(mode) {
+    stopAuto();
+    R = {mode: mode || (R && R.mode) || 'plain', count: 0, owner: null, th: {T1: {pc: 0, stack: null, blocked: false}, T2: {pc: 0, stack: null, blocked: false}}, log: [], n: 0,
+      lastT: '还没有线程执行', lastD: '点右边线程卡片上的“执行下一条”，或者先看一遍演示。'};
+    render();
+  }
+  const push = text => { R.n++; R.log.unshift({n: R.n, text}); };
+  function step(t) {
+    const me = R.th[t], prog = PROG[R.mode], other = t === 'T1' ? 'T2' : 'T1';
+    if (me.pc >= prog.length) return;
+    const ins = prog[me.pc];
+    let d;
+    if (ins.k === 'enter' && R.owner && R.owner !== t) {
+      d = me.blocked ? t + ' 还在等锁，点它不会有任何进展。' : '锁正被 ' + R.owner + ' 持有，' + t + ' 进入 EntryList，状态变成 BLOCKED。' + R.owner + ' 释放锁之前，' + t + ' 一条指令也执行不了。';
+      me.blocked = true;
+      R.lastT = t + ' 执行 monitorenter：拿不到锁'; R.lastD = d; push(R.lastT); render(); return;
+    }
+    switch (ins.k) {
+      case 'enter': R.owner = t; me.blocked = false; d = t + ' 拿到了锁。接下来的读、加、写三步，别的线程都插不进来。'; break;
+      case 'read': me.stack = R.count; d = t + ' 从内存读到 count = ' + R.count + '，放进自己的操作数栈。'; break;
+      case 'add': me.stack += 1; d = t + ' 在自己的栈上算出 ' + me.stack + '。注意：内存里的 count 还是 ' + R.count + '。'; break;
+      case 'write': {
+        const old = R.count; R.count = me.stack;
+        d = old === me.stack ? t + ' 把 ' + me.stack + ' 写回内存，可内存里本来就是 ' + old + '。' + other + ' 的那次 +1 被覆盖了。' : t + ' 把 ' + me.stack + ' 写回内存，count 从 ' + old + ' 变成 ' + me.stack + '。';
+        break;
+      }
+      case 'exit': R.owner = null; d = t + ' 释放了锁。'; if (R.th[other].blocked) { R.th[other].blocked = false; d += other + ' 被唤醒，可以继续执行了。'; } break;
+    }
+    me.pc++;
+    R.lastT = t + ' 执行 ' + ins.op; R.lastD = d; push(R.lastT + '：' + d);
+    render();
+  }
+  function tcol(t) {
+    const me = R.th[t], prog = PROG[R.mode], done = me.pc >= prog.length;
+    const st = done ? 'TERMINATED' : me.blocked ? 'BLOCKED' : 'RUNNABLE';
+    return '<div class="box stack-v"><div class="lane-h">' + th(t) + pill(st) + '<button type="button" class="btn sm' + (done || me.blocked ? '' : ' primary') + ' r-run" data-t="' + t + '" style="margin-left:auto"' + (done ? ' disabled' : '') + '>' + (done ? '已执行完' : me.blocked ? '等锁中' : '执行下一条') + '</button></div>' +
+      '<ol class="bc">' + prog.map((ins, i) => '<li class="' + (i < me.pc ? 'done' : '') + (i === me.pc ? ' cur' : '') + '"><span class="pc">' + (i === me.pc ? '▶' : '') + '</span><code>' + ins.op + '</code><span class="hint2">' + ins.h + '</span></li>').join('') + '</ol>' +
+      '<div class="opstack"><span class="rk">' + t + ' 的操作数栈</span><code>' + (me.stack === null ? '空' : '[ ' + me.stack + ' ]') + '</code></div></div>';
+  }
+  function render() {
+    $$('.seg button', root).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === R.mode ? 'true' : 'false'));
+    src.innerHTML = codePanel(RACE_SRC[R.mode], [{p: 'J', f: 'count++', t: 'T1'}]).replace('>T1<', '>T1 · T2<');
+    T.textContent = R.lastT; P.textContent = R.lastD;
+    const prog = PROG[R.mode], fin = R.th.T1.pc >= prog.length && R.th.T2.pc >= prog.length;
+    let verdict = '';
+    if (fin) verdict = R.count === 2 ? '<div class="verdict ok">两次 count++，结果 count = 2，正确。' + (R.mode === 'sync' ? '锁让“读、加、写”变成了一个整体，另一个线程只能等在外面。' : '这次两个线程恰好没有交错，但跑对一次不代表代码正确。') + '</div>'
+      : '<div class="verdict bad">两次 count++，结果却是 <b>count = ' + R.count + '</b>。后写回的线程用的是它更早读到的旧值，把另一个线程的 +1 覆盖了。这就是 2.0 节卖票程序余票对不上的原因。</div>';
+    flip(stage, () => {
+      stage.innerHTML = '<div class="stack-v"><div class="box lane-h"><span class="rk">内存里的共享变量</span><b class="big">count = ' + R.count + '</b>' + (R.mode === 'sync' ? '<span style="margin-left:auto" class="lane-h"><span class="rk">this 的锁</span>' + (R.owner ? th(R.owner) : pill('NEW').replace('NEW', '空闲')) + '</span>' : '') + '</div>' +
+        '<div class="grid2">' + tcol('T1') + tcol('T2') + '</div>' + verdict + '</div>';
+    });
+    logEl.innerHTML = R.log.length ? R.log.slice(0, 14).map(x => '<li><span class="tm">' + x.n + '</span><span>' + esc(x.text) + '</span></li>').join('') : '<li><span class="tm">—</span><span class="none">还没有执行任何指令</span></li>';
+  }
+  stage.addEventListener('click', e => { const b = e.target.closest('.r-run'); if (b && !auto) step(b.dataset.t); });
+  $$('.seg button', root).forEach(b => { b.onclick = () => reset(b.dataset.v); });
+  const runSeq = seq => { reset(R.mode); let i = 0; auto = setInterval(() => { if (i >= seq.length) { stopAuto(); render(); return; } step(seq[i++]); }, RM ? 400 : 1300); };
+  $('.r-lost', root).onclick = () => runSeq(R.mode === 'plain' ? ['T1', 'T2', 'T1', 'T2', 'T1', 'T2'] : ['T1', 'T2', 'T1', 'T1', 'T1', 'T1', 'T2', 'T2', 'T2', 'T2', 'T2']);
+  $('.r-serial', root).onclick = () => runSeq(R.mode === 'plain' ? ['T1', 'T1', 'T1', 'T2', 'T2', 'T2'] : ['T1', 'T1', 'T1', 'T1', 'T1', 'T2', 'T2', 'T2', 'T2', 'T2']);
+  $('.r-reset', root).onclick = () => reset(R.mode);
+  STOPPERS.push(stopAuto);
+  reset('plain');
+}
+
+/* ===================== 2.1 最小结果是 2 ===================== */
+function m2Stage(s, st) {
+  const lane = (t, x) => '<div class="box lane"><div class="lane-h">' + th(t) + '<span class="note">' + x.what + '</span><span class="reg" style="margin-left:auto">寄存器：' + (x.reg == null ? '—' : x.reg) + '</span></div><div class="bar"><i style="width:' + (x.done * 2) + '%"></i></div><span class="note">已完成 ' + x.done + ' / 50 次</span></div>';
+  return '<div class="stack-v"><div class="box lane-h' + chg(st, 'x') + '"><span class="rk">内存里的 x</span><b class="big">' + s.x + '</b></div>' + lane('A', s.A) + lane('B', s.B) + (s.v ? '<div class="verdict bad">' + s.v + '</div>' : '') + '</div>';
+}
+const M2_STEPS = [
+  {t: 'A 读到 x = 0，然后被切走', d: 'A 把 0 读进寄存器，还没来得及加和写回，时间片就用完了。', chg: ['x'], hl: [{p: 'X', i: 1, t: 'A'}],
+    s: {x: 0, A: {reg: 0, done: 0, what: '读完就被切走'}, B: {reg: null, done: 0, what: '还没开始'}}},
+  {t: 'B 一口气执行完 49 次', d: 'A 不在 CPU 上，B 独占时间片，完整地执行了 49 次 x++，x = 49。', chg: ['x'], hl: [{p: 'X', i: 1, t: 'B'}],
+    s: {x: 49, A: {reg: 0, done: 0, what: '仍然挂起，寄存器里是旧值 0'}, B: {reg: null, done: 49, what: '完成 49 次'}}},
+  {t: 'A 回来，把 0 + 1 写回', d: 'A 继续它被打断的那一次：用寄存器里的 0 算出 1，写回内存。<b>B 的 49 次全部被覆盖</b>，x 变成 1。', chg: ['x'], hl: [{p: 'X', i: 1, t: 'A'}],
+    s: {x: 1, A: {reg: 1, done: 1, what: '完成 1 次'}, B: {reg: null, done: 49, what: '完成 49 次'}}},
+  {t: 'B 第 50 次读到 x = 1，然后被切走', d: 'B 开始最后一次，把 1 读进寄存器，又被切走了。', hl: [{p: 'X', i: 1, t: 'B'}],
+    s: {x: 1, A: {reg: null, done: 1, what: '完成 1 次'}, B: {reg: 1, done: 49, what: '读完就被切走'}}},
+  {t: 'A 执行完剩下的 49 次', d: 'A 独占 CPU，从 1 一路加到 50。', chg: ['x'], hl: [{p: 'X', i: 1, t: 'A'}],
+    s: {x: 50, A: {reg: null, done: 50, what: '全部完成'}, B: {reg: 1, done: 49, what: '仍然挂起，寄存器里是旧值 1'}}},
+  {t: 'B 回来，写回 1 + 1 = 2', d: 'B 用寄存器里的 1 算出 2，写回内存。A 的 49 次也被覆盖了。', chg: ['x'], hl: [{p: 'X', i: 1, t: 'B'}],
+    s: {x: 2, A: {reg: null, done: 50, what: '全部完成'}, B: {reg: 2, done: 50, what: '全部完成'}, v: '两个线程各加了 50 次，最终 x = 2。关键是两次“读到旧值、挂起很久、再写回覆盖别人”。'}}
+];
+
+/* ===================== 2.2 可见性 ===================== */
+const MESI_S = {M: '已修改', E: '独占', S: '共享', I: '失效'};
+const MESI_L = {M: 'M 已修改：只有这个核有最新值，和内存不一致', E: 'E 独占：只有这个核有，和内存一致', S: 'S 共享：多个核都有，和内存一致', I: 'I 失效：这一行不能再用，要重新读'};
+const C = (sb, st, v, iq) => ({sb, cache: {st, v}, iq});
+function visStage(s, st) {
+  const core = (n, c, thr) => '<div class="core-c"><div class="core-h">核 ' + n + ' ' + th(thr) + '<span class="note">运行线程 ' + thr + '</span></div>' +
+    '<div class="rowv"><span class="rk">写缓冲 Store Buffer</span><div class="slots' + chg(st, 'sb' + n) + '">' + (c.sb.length ? c.sb.map(x => '<span class="chip">' + esc(x) + '</span>').join('') : '<span class="none">空</span>') + '</div></div>' +
+    '<div class="rowv"><span class="rk">L1 缓存行</span><div class="cline' + chg(st, 'cache' + n) + '"><span class="mesi m-' + c.cache.st + '" title="' + MESI_L[c.cache.st] + '">' + c.cache.st + '</span><code>stop = ' + c.cache.v + '</code><span class="note">' + MESI_S[c.cache.st] + '</span></div></div>' +
+    '<div class="rowv"><span class="rk">失效队列 Invalidate Queue</span><div class="slots' + chg(st, 'iq' + n) + '">' + (c.iq.length ? c.iq.map(x => '<span class="chip warn">' + esc(x) + '</span>').join('') : '<span class="none">空</span>') + '</div></div></div>';
+  return '<div class="stack-v"><div class="grid2">' + core(0, s.c0, 'A') + core(1, s.c1, 'B') + '</div>' +
+    '<div class="bus">' + (s.msg && s.msg.length ? s.msg.map(m => '<div class="msg">' + esc(m) + '</div>').join('') : '<div class="msg none">暂时没有消息</div>') + '</div>' +
+    '<div class="memrow' + chg(st, 'mem') + '"><span class="rk">主内存</span><code>stop = ' + s.mem + '</code></div>' +
+    '<div class="bview ' + s.loop + chg(st, 'bview') + '">' + th('B') + '<span>' + s.bsees + '</span></div></div>';
+}
+const VIS_CODE = {
+  plain: [
+    {id: 'A', title: '线程 A · 运行在核 0', lines: ['static boolean stop = false;', '', '// 100ms 后，A 执行：', 'stop = true;']},
+    {id: 'B', title: '线程 B · 运行在核 1', lines: ['int i = 0;', 'while (!stop) {', '    i++;', '}', '', '// JIT 优化后，可能等价于：', 'boolean r = stop;', 'while (!r) { i++; }']}],
+  vol: [
+    {id: 'A', title: '线程 A · 运行在核 0', lines: ['static volatile boolean stop = false;', '', '// 100ms 后，A 执行：', 'stop = true;', '// JIT 在后面补一条 lock addl（StoreLoad 屏障）']},
+    {id: 'B', title: '线程 B · 运行在核 1', lines: ['int i = 0;', 'while (!stop) {   // 每次都是 volatile 读', '    i++;', '}', '', '// volatile 读不能被提到循环外']}]
+};
+const V0 = {c0: C([], 'S', 'false', []), c1: C([], 'S', 'false', []), msg: [], mem: 'false', bsees: '读自己缓存里的 stop = false，继续循环', loop: 'run'};
+function visSteps(v) {
+  const first = {t: '初始状态：两个核各缓存了一份 stop', d: 'stop 的值是 false。两个核都读过它，各自的 L1 缓存里有一份，MESI 状态都是 <b>S（共享）</b>。线程 B 在核 1 上不停循环，每一圈都从自己的缓存读到 false。', hl: [{p: 'B', f: 'while (!stop)', t: 'B'}], s: V0};
+  if (v === 'plain') return [first,
+    {t: 'A 写 stop = true：先放进写缓冲', d: '为了不等别的核，核 0 把这次写先放进<b>写缓冲</b>，线程 A 立刻接着往下执行。这时核 0 的缓存和主内存都还是 false，B 读自己的缓存，当然还是 false。', hl: [{p: 'A', f: 'stop = true;', t: 'A'}, {p: 'B', f: 'while (!stop)', t: 'B'}], chg: ['sb0'],
+      s: {c0: C(['stop = true'], 'S', 'false', []), c1: C([], 'S', 'false', []), msg: [], mem: 'false', bsees: '读自己缓存里的 stop = false，继续循环', loop: 'run'}},
+    {t: '核 0 发出失效通知，核 1 先收下排队', d: '写缓冲要刷进缓存，按 MESI 的规则，必须先让核 1 的那一行失效。核 1 收到失效通知后先放进<b>失效队列</b>，马上回复“收到了”，却还没真正处理。于是核 0 的缓存行变成 M（true），核 1 的那一行仍是 S（false）：B 继续读到旧值。', hl: [{p: 'B', f: 'while (!stop)', t: 'B'}], chg: ['cache0', 'iq1', 'sb0'],
+      s: {c0: C([], 'M', 'true', []), c1: C([], 'S', 'false', ['失效 stop']), msg: ['核 0 → 核 1：Invalidate(stop)', '核 1 → 核 0：Ack（只是收下，还没处理）'], mem: 'false', bsees: '读自己缓存里的 stop = false，继续循环', loop: 'run'}},
+    {t: '核 1 稍后处理失效队列，B 才读到 true', d: '某个时刻，核 1 处理了失效队列，自己的缓存行变成 I。B 再读时缓存不命中，从核 0 取到最新值 true（两边变回 S，主内存也写回 true），循环结束。问题在于“某个时刻”没有任何保证。', hl: [{p: 'B', f: 'while (!stop)', t: 'B'}], chg: ['cache1', 'iq1', 'mem', 'bview'],
+      s: {c0: C([], 'S', 'true', []), c1: C([], 'S', 'true', []), msg: ['核 1 → 核 0：Read(stop)', '核 0 → 核 1：stop = true'], mem: 'true', bsees: '缓存失效后重新读到 stop = true，退出循环', loop: 'exit'}},
+    {t: '另一种结局：JIT 把读提到了循环外', d: '这就是 2.0 节 ForeverLoop 在 JDK 17 上真的卡住的原因。循环跑了很多圈后，JIT 发现循环体里没人改 stop，就按第 7、8 行的写法编译：只在进循环前读一次，放进寄存器。之后 B 根本不再读缓存，<b>循环永远停不下来</b>。', hl: [{p: 'B', f: 'boolean r = stop;', t: 'B'}, {p: 'B', f: 'while (!r)', t: 'B'}], chg: ['bview'],
+      s: {c0: C([], 'S', 'true', []), c1: C([], 'S', 'true', []), msg: [], mem: 'true', bsees: '寄存器里的 r 一直是 false，根本不再读 stop，永远循环', loop: 'forever'}}];
+  return [first,
+    {t: 'volatile 写：写完立刻刷出写缓冲', d: 'volatile 写后面，JIT 会补一条 <code>lock addl</code> 指令，也就是 StoreLoad 屏障。它要求写缓冲里的内容刷进缓存、其他核确认收到失效通知后，A 才能继续往下走。', hl: [{p: 'A', f: 'stop = true;', t: 'A'}, {p: 'A', f: 'lock addl', t: 'A'}], chg: ['cache0', 'iq1'],
+      s: {c0: C([], 'M', 'true', []), c1: C([], 'S', 'false', ['失效 stop']), msg: ['核 0 → 核 1：Invalidate(stop)', '核 1 → 核 0：Ack', '屏障：等写缓冲清空后，A 才继续执行'], mem: 'false', bsees: '下一次读 stop 之前，要先过读屏障', loop: 'run'}},
+    {t: 'volatile 读：先处理完失效队列再读', d: 'B 每次读 volatile 变量前，都要先处理完失效队列（读屏障）。核 1 的缓存行因此变成 I，这次读就会去核 0 取最新值 true。B 读到 true，循环结束。', hl: [{p: 'B', f: 'while (!stop)', t: 'B'}], chg: ['cache1', 'iq1', 'mem', 'bview'],
+      s: {c0: C([], 'S', 'true', []), c1: C([], 'S', 'true', []), msg: ['核 1：先清空失效队列，缓存行置为 I', '核 1 → 核 0：Read(stop)', '核 0 → 核 1：stop = true'], mem: 'true', bsees: '读到 stop = true，退出循环', loop: 'exit'}},
+    {t: 'JIT 也不能把 volatile 读提到循环外', d: 'volatile 同时约束编译器：每一圈都必须真的读一次 stop，不能缓存在寄存器里。x86 硬件本身较强，读端屏障几乎没有开销；在 ARM 等平台上，读端屏障才真正要做事。', hl: [{p: 'B', f: 'volatile 读不能', t: 'B'}],
+      s: {c0: C([], 'S', 'true', []), c1: C([], 'S', 'true', []), msg: [], mem: 'true', bsees: '每一圈都真的读 stop：读到 true，退出循环', loop: 'exit'}}];
+}
+
+/* ===================== 2.4 happens-before 推导 ===================== */
+function hbStage(s) {
+  const box = (id, x, y, main, sub) => '<g class="hb-box' + (s.on.includes(id) ? ' on' : '') + '"><rect x="' + x + '" y="' + y + '" width="240" height="52" rx="10"/><text x="' + (x + 14) + '" y="' + (y + 23) + '">' + main + '</text><text class="sub" x="' + (x + 14) + '" y="' + (y + 42) + '">' + sub + '</text></g>';
+  const e = s.edges;
+  const has = k => e.includes(k);
+  return '<svg class="hb-svg" viewBox="0 0 660 300" role="img" aria-label="happens-before 推导图"><defs><marker id="hb-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="hb-m-ok" d="M0 0L10 5L0 10z"/></marker><marker id="hb-der" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="hb-m-der" d="M0 0L10 5L0 10z"/></marker></defs>' +
+    '<text class="hb-col" x="40" y="20">线程 A</text><text class="hb-col" x="360" y="20">线程 B</text>' +
+    box('1', 40, 30, '① data = 42', '普通写') + box('2', 40, 130, '② ready = true', s.vol ? 'volatile 写' : '普通写') + box('3', 360, 130, '③ if (ready)', s.vol ? 'volatile 读，读到 true' : '普通读，读到 true') + box('4', 360, 230, '④ print(data)', s.res || '打印 data') +
+    (has('12') ? '<path class="hb-e ok" d="M160 82 V128" marker-end="url(#hb-ok)"/><text class="hb-l ok" x="170" y="110">程序顺序规则</text>' : '') +
+    (has('23') ? '<path class="hb-e ok" d="M280 156 H358" marker-end="url(#hb-ok)"/><text class="hb-l ok" x="284" y="148">volatile 规则</text>' : '') +
+    (has('x23') ? '<path class="hb-e no" d="M280 156 H358"/><text class="hb-l no" x="290" y="148">没有规则</text><text class="hb-l no" x="312" y="178" font-size="16">✕</text>' : '') +
+    (has('34') ? '<path class="hb-e ok" d="M480 182 V228" marker-end="url(#hb-ok)"/><text class="hb-l ok" x="490" y="210">程序顺序规则</text>' : '') +
+    (has('14') ? '<path class="hb-e der" d="M280 44 H630 V256 H602" marker-end="url(#hb-der)"/><text class="hb-l der" x="420" y="36">传递性：① hb ④</text>' : '') +
+    '</svg>' + (s.v ? '<div class="verdict ' + s.v[0] + '" style="margin-top:8px">' + s.v[1] + '</div>' : '');
+}
+const HB_CODE = v => [
+  {id: 'D', title: '共享变量', lines: ['int data = 0;', v === 'vol' ? 'volatile boolean ready = false;' : 'boolean ready = false;   // 没加 volatile']},
+  {id: 'A', title: '线程 A', lines: ['data = 42;        // ①', 'ready = true;     // ②']},
+  {id: 'B', title: '线程 B', lines: ['if (ready) {      // ③', '    print(data);  // ④', '}']}
+];
+function hbSteps(v) {
+  if (v === 'vol') return [
+    {t: '① hb ②：程序顺序规则', d: '同一个线程里，前面的操作 happens-before 后面的操作。', hl: [{p: 'A', i: 0, t: 'A'}, {p: 'A', i: 1, t: 'A'}], s: {vol: true, on: ['1', '2'], edges: ['12']}},
+    {t: '② hb ③：volatile 规则', d: '对 volatile 变量的写，happens-before 之后对它的读。B 在 ③ 读到了 true，说明 ③ 发生在 ② 之后。', hl: [{p: 'A', i: 1, t: 'A'}, {p: 'B', i: 0, t: 'B'}], s: {vol: true, on: ['2', '3'], edges: ['12', '23']}},
+    {t: '③ hb ④：程序顺序规则', d: '在线程 B 里，③ 在 ④ 前面。', hl: [{p: 'B', i: 0, t: 'B'}, {p: 'B', i: 1, t: 'B'}], s: {vol: true, on: ['3', '4'], edges: ['12', '23', '34']}},
+    {t: '传递性：① hb ④，所以 ④ 一定打印 42', d: 'A hb B、B hb C，就有 A hb C。把三条边连起来，① 的写入对 ④ 一定可见。这就是 volatile 的“顺风车”：data 本身不是 volatile，也被 ready 带着保证了可见性。', hl: [{p: 'A', i: 0, t: 'A'}, {p: 'B', i: 1, t: 'B'}], s: {vol: true, on: ['1', '4'], edges: ['12', '23', '34', '14'], res: '一定打印 42', v: ['ok', '结论成立：只要 ③ 读到了 true，④ 就一定看到 42。']}}
+  ];
+  return [
+    {t: '① hb ②：程序顺序规则仍然成立', d: '同一个线程里，前面的操作 happens-before 后面的操作。但这条规则只对线程 A 自己有意义：别的线程看到的顺序，可以和它不一样。', hl: [{p: 'A', i: 0, t: 'A'}, {p: 'A', i: 1, t: 'A'}], s: {vol: false, on: ['1', '2'], edges: ['12']}},
+    {t: '② 和 ③ 之间没有任何规则', d: 'ready 是普通变量，没有任何一条 happens-before 规则把“A 写 ready”和“B 读 ready”连起来。B 读到 true，只说明碰巧看到了这次写，不代表能看到它之前的写。', hl: [{p: 'D', i: 1, t: 'B'}], s: {vol: false, on: ['2', '3'], edges: ['12', 'x23']}},
+    {t: '③ hb ④ 也救不回来', d: '线程 B 里 ③ 在 ④ 前面，但链条在 ② 和 ③ 之间断了。', hl: [{p: 'B', i: 0, t: 'B'}, {p: 'B', i: 1, t: 'B'}], s: {vol: false, on: ['3', '4'], edges: ['12', 'x23', '34']}},
+    {t: '推不出 ① hb ④：④ 可能打印 0', d: '① 和 ② 没有依赖，可能被重排成先写 ready、后写 data；或者 data 的写入还停在 A 所在核的写缓冲里。两种情况下，B 都可能读到 ready = true、data = 0。', hl: [{p: 'B', i: 1, t: 'B'}], s: {vol: false, on: ['4'], edges: ['12', 'x23', '34'], res: '可能打印 0', v: ['bad', '结论不成立：没有 volatile，就没有 ②→③ 这条边，① 对 ④ 不保证可见。']}}
+  ];
+}
+
+/* ===================== 2.7 DCL ===================== */
+const DCL_CODE = v => [
+  {id: 'G', title: 'getInstance()', lines: [
+    v === 'vol' ? 'private static volatile Singleton instance;' : 'private static Singleton instance;   // 没加 volatile',
+    'public static Singleton getInstance() {',
+    '    if (instance == null) {              // 第一次检查（锁外）',
+    '        synchronized (Singleton.class) {',
+    '            if (instance == null) {      // 第二次检查',
+    '                instance = new Singleton();',
+    '            }',
+    '        }',
+    '    }',
+    '    return instance;',
+    '}']},
+  {id: 'N', title: 'new Singleton() 实际是三步', lines: ['memory = allocate();      // ① 分配内存，字段都是默认值', 'ctorInstance(memory);     // ② 执行构造方法，加载 config', 'instance = memory;        // ③ 把引用赋给 instance']}
+];
+function dclStage(s) {
+  const obj = s.obj ? '<div class="box' + (s.obj.init ? '' : '') + '"><div class="box-h">堆上的 Singleton 对象</div><div>config = <code>' + (s.obj.init ? '已加载' : 'null') + '</code> ' + (s.obj.init ? pill('RUNNABLE').replace('RUNNABLE', '构造完成') : '<span class="pill bad">只分配了内存</span>') + '</div></div>' : '<div class="box"><div class="box-h">堆上的 Singleton 对象</div><span class="none">还没有创建</span></div>';
+  return '<div class="stack-v"><div class="grid2">' + obj + '<div class="box"><div class="box-h">静态字段 instance</div><code>' + (s.inst ? '→ 指向左边的对象' : 'null') + '</code></div></div>' +
+    '<div class="grid2"><div class="box lane"><div class="lane-h">' + th('A') + '</div><span class="note">' + s.a + '</span></div><div class="box lane"><div class="lane-h">' + th('B') + '</div><span class="note">' + s.b + '</span></div></div>' + (s.v ? '<div class="verdict ' + s.v[0] + '">' + s.v[1] + '</div>' : '') + '</div>';
+}
+function dclSteps(v) {
+  const s1 = {t: 'A：两次检查都是 null，准备 new', d: 'A 第一次检查发现 instance 是 null，进入 synchronized；第二次检查仍是 null，开始创建对象。', hl: [{p: 'G', i: 2, t: 'A'}, {p: 'G', i: 3, t: 'A'}, {p: 'G', i: 4, t: 'A'}], s: {obj: null, inst: false, a: '持有锁，准备 new', b: '还没调用'}};
+  const s2 = {t: 'A 执行 ①：分配内存', d: '对象有了内存，但构造方法还没执行，config 还是默认值 null。', hl: [{p: 'G', i: 5, t: 'A'}, {p: 'N', i: 0, t: 'A'}], s: {obj: {init: false}, inst: false, a: '执行 ①', b: '还没调用'}};
+  if (v === 'plain') return [s1, s2,
+    {t: 'A 先执行了 ③：② 被重排到后面', d: '② 和 ③ 之间没有数据依赖，编译器和 CPU 可以把 ③ 提前。对 A 自己来说结果一样（as-if-serial），对别的线程就不一样了：<b>instance 已经不是 null，对象却还没初始化</b>。', hl: [{p: 'N', i: 2, t: 'A'}], s: {obj: {init: false}, inst: true, a: '执行了 ③，② 还没做', b: '还没调用'}},
+    {t: 'B 调用 getInstance：锁外第一次检查就返回了', d: 'B 看到 instance 不是 null，根本没进 synchronized，直接把它拿走了。synchronized 管不到锁外的这次读。', hl: [{p: 'G', i: 2, t: 'B'}, {p: 'G', i: 9, t: 'B'}], s: {obj: {init: false}, inst: true, a: '执行了 ③，② 还没做', b: '拿到了 instance'}},
+    {t: 'B 用到了没初始化完的对象', d: 'B 去读 config，读到的是 null。A 这时才执行 ②，已经晚了。', hl: [{p: 'N', i: 1, t: 'A'}], s: {obj: {init: false}, inst: true, a: '这时才执行 ②', b: '读到 config = null，出错', v: ['bad', '单例拿到了，却是“半个对象”。这类问题极难复现，只在特定的重排和时序下出现。']}}
+  ];
+  return [s1, s2,
+    {t: 'A 执行 ②：构造方法跑完', d: 'volatile 写前面有 StoreStore 屏障：② 的所有写入必须先完成，不能被排到 ③ 后面。', hl: [{p: 'N', i: 1, t: 'A'}], s: {obj: {init: true}, inst: false, a: '执行 ②', b: '还没调用'}},
+    {t: 'A 执行 ③：volatile 写 instance', d: '此刻对象已经完整，instance 才指向它。', hl: [{p: 'N', i: 2, t: 'A'}, {p: 'G', i: 5, t: 'A'}], s: {obj: {init: true}, inst: true, a: '执行 ③', b: '还没调用'}},
+    {t: 'B 第一次检查看到非 null，拿到的一定是完整对象', d: '根据 volatile 规则，A 对 instance 的写 happens-before B 对它的读；再加上程序顺序规则，② 里的写入对 B 都可见。', hl: [{p: 'G', i: 2, t: 'B'}, {p: 'G', i: 9, t: 'B'}], s: {obj: {init: true}, inst: true, a: '已退出', b: '读到 config 已加载', v: ['ok', '加上 volatile，B 要么看到 null（去锁里等），要么看到一个完整的对象。']}}
+  ];
+}
+
+/* ===================== 3.2 字节码与异常表 ===================== */
+const BC_LINES = ['monitorenter', 'aload_0', 'dup', 'getfield      count', 'iconst_1', 'iadd', 'putfield      count', 'aload_1', 'monitorexit', 'goto          27', 'astore_2', 'aload_1', 'monitorexit', 'aload_2', 'athrow', 'return', '', 'Exception table:', '  from  to  target  type', '     7  19      22   any', '    22  25      22   any'];
+const BC_NUMS = ['6:', '7:', '8:', '9:', '12:', '13:', '14:', '17:', '18:', '19:', '22:', '23:', '24:', '25:', '26:', '27:', '', '', '', '', ''];
+const BC_CODE = () => [{id: 'J', title: 'javap -c 的输出（block() 方法，节选）', lines: BC_LINES, nums: BC_NUMS, plain: true}];
+function bcStage(s) {
+  return '<div class="stack-v"><div class="grid2"><div class="box kv"><span class="rk">lock 的持有情况</span><span>' + (s.lock ? th('main') + ' 持有中' : '<span class="pill idle">空闲</span>') + '</span></div>' +
+    '<div class="box kv"><span class="rk">异常</span><span>' + (s.ex ? '<span class="pill bad">' + s.ex + '</span>' : '<span class="none">没有</span>') + '</span></div></div>' + (s.v ? '<div class="verdict ' + s.v[0] + '">' + s.v[1] + '</div>' : '') + '</div>';
+}
+function bcSteps(v) {
+  const J = 'J', t = 'main';
+  const s1 = {t: 'monitorenter：加锁', d: '第 5 条已经把锁对象存进了局部变量 1，第 6 条用它加锁。', hl: [{p: J, i: 0, t}], s: {lock: true, ex: null}};
+  if (v === 'ok') return [s1,
+    {t: '执行 count++', d: '第 7~14 条就是 count++ 的读、加、写。', hl: [1, 2, 3, 4, 5, 6].map(i => ({p: J, i, t})), s: {lock: true, ex: null}},
+    {t: '正常出口：monitorexit 释放锁', d: '用局部变量 1 里保存的同一个锁对象解锁。', hl: [{p: J, i: 7, t}, {p: J, i: 8, t}], s: {lock: false, ex: null}},
+    {t: 'goto 27，方法返回', d: '正常路径跳过了 22~26 的异常处理代码。', hl: [{p: J, i: 9, t}, {p: J, i: 15, t}], s: {lock: false, ex: null, v: ['ok', '正常路径：加锁一次，解锁一次。']}}
+  ];
+  return [s1,
+    {t: '同步块里抛出了异常', d: '假设第 9 条执行时抛出了异常（比如同步块里换成调用一个会抛 RuntimeException 的方法）。后面的指令都不会执行了。', hl: [{p: J, i: 3, t}], s: {lock: true, ex: 'RuntimeException'}},
+    {t: '查异常表：跳到第 22 条', d: '异常表第一行说：第 7~19 条之间抛出任何类型（any）的异常，都跳到第 22 条。', hl: [{p: J, i: 19, t}, {p: J, i: 10, t}], s: {lock: true, ex: 'RuntimeException，暂存到局部变量 2'}},
+    {t: '先 monitorexit 释放锁', d: '异常处理代码第一件事就是解锁。', hl: [{p: J, i: 11, t}, {p: J, i: 12, t}], s: {lock: false, ex: 'RuntimeException，暂存到局部变量 2'}},
+    {t: '再 athrow 把异常抛出去', d: '锁已经释放，异常继续向调用者传播。第二行异常表（22~25）覆盖的是这段处理代码本身，是 javac 加的保险。', hl: [{p: J, i: 13, t}, {p: J, i: 14, t}], s: {lock: false, ex: 'RuntimeException，抛给调用者', v: ['ok', '这就是“synchronized 抛异常也会释放锁”的底层保证：编译器替你写好了 finally。']}}
+  ];
+}
+
+/* ===================== 3.3 Mark Word 比特查看器 ===================== */
+const SEGDEF = {
+  unlocked: [[63, 39, '未使用', 'u'], [38, 8, 'hashCode', 'h'], [7, 7, '未使用', 'u'], [6, 3, 'GC 年龄', 'a'], [2, 2, '偏向位', 'b'], [1, 0, '锁标志', 'l']],
+  biased: [[63, 10, '线程指针', 't'], [9, 8, 'epoch', 'e'], [7, 7, '未使用', 'u'], [6, 3, 'GC 年龄', 'a'], [2, 2, '偏向位', 'b'], [1, 0, '锁标志', 'l']],
+  thin: [[63, 2, 'Lock Record 指针', 'p'], [1, 0, '锁标志', 'l']],
+  heavy: [[63, 2, 'ObjectMonitor 指针', 'p'], [1, 0, '锁标志', 'l']]
+};
+const SW = {u: 'var(--surface-2)', h: 'color-mix(in srgb, var(--t3) 40%, transparent)', a: 'color-mix(in srgb, var(--t4) 40%, transparent)', b: 'color-mix(in srgb, var(--t2) 40%, transparent)', l: 'var(--accent)', t: 'color-mix(in srgb, var(--t1) 35%, transparent)', p: 'color-mix(in srgb, var(--t1) 35%, transparent)', e: 'color-mix(in srgb, var(--t2) 25%, transparent)'};
+function bitGrid(hex, kind) {
+  const n = BigInt(hex), segs = SEGDEF[kind];
+  const segOf = b => segs.find(s => b <= s[0] && b >= s[1]);
+  const row = (hi, lo) => { let c = ''; for (let b = hi; b >= lo; b--) { const s = segOf(b); c += '<span class="bit k-' + s[3] + '" title="第 ' + b + ' 位 · ' + s[2] + '">' + ((n >> BigInt(b)) & 1n) + '</span>'; } return '<div class="bitrow">' + c + '</div>'; };
+  const legend = segs.map(s => {
+    const w = s[0] - s[1] + 1, val = (n >> BigInt(s[1])) & ((1n << BigInt(w)) - 1n);
+    let disp;
+    if (s[3] === 'p' || s[3] === 't') disp = '0x' + (val << BigInt(s[1])).toString(16) + (val === 0n ? '（还没偏向任何线程）' : '（地址）');
+    else if (s[3] === 'h') disp = '0x' + val.toString(16);
+    else disp = val.toString(2).padStart(w, '0');
+    return '<li><span class="sw" style="background:' + SW[s[3]] + '"></span><b>' + s[2] + '</b><span class="note mono">第 ' + s[0] + (w > 1 ? '~' + s[1] : '') + ' 位</span><code>' + disp + '</code></li>';
+  }).join('');
+  return '<div class="bits"><div class="bitaxis"><span>第 63 位</span><span>第 32 位</span></div>' + row(63, 32) + '<div class="bitaxis"><span>第 31 位</span><span>第 0 位</span></div>' + row(31, 0) + '</div><ul class="seglegend">' + legend + '</ul>';
+}
+const MW_STATES = [
+  {k: 'unlocked', label: '无锁 001', hex: '0x0000005c647e0501', src: 'MarkWordDemo 第 2 行：调用 hashCode() 之后', note: '中间那段 hashCode 的值是 0x5c647e05，正好等于 hashCode() 的返回值。'},
+  {k: 'biased', label: '偏向锁 101', hex: '0x000000014300e005', src: '用 -XX:+UseBiasedLocking 打开偏向锁后，加锁中实测', note: '高位存的是持有线程的指针（常说的“线程 ID”），低三位 101。'},
+  {k: 'thin', label: '轻量级锁 00', hex: '0x000000016bddaad0', src: 'MarkWordDemo 第 3 行：单线程加锁中', note: '除了最低两位，其余都是指向持锁线程栈上 Lock Record 的地址；原来的 hashCode 被搬进了 Lock Record。'},
+  {k: 'heavy', label: '重量级锁 10', hex: '0x000000012693e942', src: 'MarkWordDemo 第 5 行：另一个线程来抢锁', note: '其余位是 ObjectMonitor 的地址（最低两位补 0 后是 0x12693e940）。'}
+];
+function markWordLab(root) {
+  root.classList.add('lab');
+  let cur = 0;
+  root.innerHTML = labTop({kind: '比特查看器', title: '把 Mark Word 的 64 位摊开看', intro: '下面每个十六进制值都是 MarkWordDemo 在 JDK 17 上打印出来的真实值。切换锁状态，看同样的 64 位在不同状态下怎么被重新解读。'}) +
+    '<div class="ctrl"><div class="seg" role="group" aria-label="锁状态">' + MW_STATES.map((m, i) => '<button type="button" data-i="' + i + '">' + m.label + '</button>').join('') + '</div></div><div class="mw-body"></div>';
+  const render = () => {
+    const m = MW_STATES[cur];
+    $('.mw-body', root).innerHTML = '<div class="box"><div class="mw-head"><span class="rk">Mark Word</span><code>' + m.hex + '</code><span class="note">' + m.src + '</span></div>' + bitGrid(m.hex, m.k) + '<p class="narr-p" style="margin-top:8px">' + m.note + '</p></div>';
+    $$('.seg button', root).forEach((b, i) => b.setAttribute('aria-pressed', i === cur ? 'true' : 'false'));
+  };
+  $$('.seg button', root).forEach((b, i) => { b.onclick = () => { cur = i; render(); }; });
+  root._key = e => {
+    if (e.key === 'ArrowRight') { cur = Math.min(MW_STATES.length - 1, cur + 1); render(); return true; }
+    if (e.key === 'ArrowLeft') { cur = Math.max(0, cur - 1); render(); return true; }
+    return false;
+  };
+  render();
+}
+
+/* ===================== 3.4 synchronized 的一生 ===================== */
+const MK = {
+  fresh: {kind: 'unlocked', hex: '0x0000000000000001', hash: '0', label: '无锁 · 001'},
+  hashed: {kind: 'unlocked', hex: '0x0000005c647e0501', hash: '0x5c647e05', label: '无锁 · 001'},
+  thin: {kind: 'thin', hex: '0x000000016bddaad0', label: '轻量级锁 · 00'},
+  heavy: {kind: 'heavy', hex: '0x000000012693e942', label: '重量级锁 · 10'}
+};
+function markStrip(m) {
+  let segs;
+  if (m.kind === 'unlocked') segs = [[25, '未使用', '0'], [31, 'hashCode', m.hash], [1, '未用', '0'], [4, 'GC 年龄', '0000'], [1, '偏向', '0'], [2, '锁标志', '01', 1]];
+  else if (m.kind === 'thin') segs = [[62, '指向 A 栈上 Lock Record 的指针', '0x16bddaad0'], [2, '锁标志', '00', 1]];
+  else segs = [[62, '指向 ObjectMonitor 的指针', '0x12693e940'], [2, '锁标志', '10', 1]];
+  return '<div class="strip-wrap"><div class="strip">' + segs.map(x => '<div class="seg-b' + (x[3] ? ' key' : '') + '" style="flex:' + x[0] + ' 1 0" title="' + x[1] + '，' + x[0] + ' 位"><span class="sv">' + x[2] + '</span><span class="sl">' + x[1] + ' · ' + x[0] + '</span></div>').join('') + '</div></div>';
+}
+function lcStage(s, st) {
+  const m = s.mark;
+  const obj = '<div class="mw-head"><span class="rk">Mark Word</span><code class="' + chg(st, 'mark').trim() + '">' + m.hex + '</code><span class="tag">' + m.label + '</span></div>' + markStrip(m) +
+    (m.kind === 'thin' ? '<div class="lane-h" style="margin-top:8px"><span class="note">持锁线程</span>' + th('A', 'tok-A') + '<span class="note">没有 monitor，Mark Word 直接指向 A 栈上的 Lock Record</span></div>' : '');
+  const stack = s.lr ? '<div class="box' + chg(st, 'lr') + '"><div class="box-h">' + th('A') + ' 的栈帧里</div><code style="font-size:12.5px">Lock Record @ 0x16bddaad0，保管着原 Mark Word 0x0000005c647e0501</code></div>' : '';
+  const mon = s.mon ? '<div class="box' + chg(st, 'mon') + '"><div class="box-h">ObjectMonitor @ 0x12693e940 <span class="note">JVM 另外分配的 C++ 对象，_header 里保管着原 Mark Word</span></div>' + zones(s.mon) + '</div>'
+    : '<div class="box"><div class="box-h">ObjectMonitor</div><span class="none">' + (s.monNote || '还不存在。没有竞争、也没人调用 wait 时，根本用不到它。') + '</span></div>';
+  return '<div class="stack-v"><div class="box' + chg(st, 'obj') + '"><div class="box-h">堆上的对象 lock</div>' + obj + '</div>' + stack + mon + '<div class="box"><div class="box-h">两个线程此刻的状态</div>' + thrTable(['A', 'B'], s.th, st) + '</div></div>';
+}
+const LC_CODE = () => [
+  {id: 'main', title: 'main 线程', lines: ['Object lock = new Object();', 'lock.hashCode();']},
+  {id: 'A', title: '线程 A', lines: ['synchronized (lock) {', '    while (!ready) {', '        lock.wait();', '    }', '    use();', '}']},
+  {id: 'B', title: '线程 B', lines: ['synchronized (lock) {', '    ready = true;', '    lock.notify();', '}']}
+];
+function lcSteps() {
+  const L = '- locked ' + ADDR, WTL = '- waiting to lock ' + ADDR, WON = '- waiting on ' + ADDR, RL = '- waiting to re-lock in wait() ' + ADDR;
+  const N = TS('NEW', '', '还没开始执行'), X = TS('TERMINATED', '', '线程结束');
+  return [
+    {t: '创建对象：Mark Word 末三位是 001', d: 'new 出来的对象放在堆上，Mark Word 末三位是 <b>001</b>（无锁），hashCode 的 31 位还全是 0。这时没有 ObjectMonitor：绝大多数对象一辈子都用不到它。', hl: [{p: 'main', i: 0, t: 'main'}], chg: ['obj'], s: {mark: MK.fresh, lr: false, mon: null, th: {A: N, B: N}}},
+    {t: '调用 hashCode()：哈希值写进对象头', d: '第一次调用 hashCode() 时，JVM 算出 <code>0x5c647e05</code>，写进 Mark Word 的第 8~38 位。', hl: [{p: 'main', i: 1, t: 'main'}], chg: ['mark'], s: {mark: MK.hashed, lr: false, mon: null, th: {A: N, B: N}}},
+    {t: 'A 加锁，没有竞争：轻量级锁', d: 'A 在自己的栈帧里建一个 <b>Lock Record</b>，把原来的 Mark Word（含 hashCode）复制进去，再用一次 CAS 把 Mark Word 换成指向它的指针，末两位变成 <b>00</b>。没有 monitor，也没有进内核。', hl: [{p: 'A', i: 0, t: 'A'}], chg: ['mark', 'lr', 'thA'], s: {mark: MK.thin, lr: true, mon: null, th: {A: TS('RUNNABLE', L, '持有锁'), B: N}}},
+    {t: 'B 也来加锁：锁膨胀成重量级', d: 'B 的 CAS 失败，说明出现了竞争。JVM 分配一个 <b>ObjectMonitor</b>，把原 Mark Word 搬进它的 _header，再让对象头指向它，末两位变成 <b>10</b>。A 成为 Owner；B 自旋几轮还拿不到，就进入 EntryList 并 park。', hl: [{p: 'B', i: 0, t: 'B'}], chg: ['mark', 'mon', 'thB'], s: {mark: MK.heavy, lr: false, mon: {owner: 'A', entry: ['B'], wait: []}, th: {A: TS('RUNNABLE', L, '持有锁'), B: TS('BLOCKED', WTL, '在 EntryList 等锁')}}},
+    {t: 'A 调用 wait()：让出锁，进 WaitSet', d: 'ready 还是 false，A 调用 lock.wait()，把锁让出来，进入 <b>WaitSet</b>。Owner 空了，JVM 叫醒 B 去抢锁。', hl: [{p: 'A', i: 1, t: 'A'}, {p: 'A', i: 2, t: 'A'}], chg: ['thA', 'thB'], s: {mark: MK.heavy, lr: false, mon: {owner: null, entry: ['B'], wait: ['A']}, th: {A: TS('WAITING', WON, '在 WaitSet 等通知'), B: TS('BLOCKED', WTL, '已被唤醒，正在抢锁')}}},
+    {t: 'B 拿到锁，把 ready 改成 true', d: 'B 成为 Owner，执行 ready = true。A 还在 WaitSet 里睡着。', hl: [{p: 'B', i: 1, t: 'B'}], chg: ['thB'], s: {mark: MK.heavy, lr: false, mon: {owner: 'B', entry: [], wait: ['A']}, th: {A: TS('WAITING', WON, '在 WaitSet 等通知'), B: TS('RUNNABLE', L, '持有锁')}}},
+    {t: 'B 调用 notify()：A 被挪回 EntryList', d: 'notify 只是把 A 挪到 EntryList，<b>并没有把锁交给它</b>。B 仍是 Owner，A 从 WAITING 变成 BLOCKED。', hl: [{p: 'B', i: 2, t: 'B'}], chg: ['thA'], s: {mark: MK.heavy, lr: false, mon: {owner: 'B', entry: ['A'], wait: []}, th: {A: TS('BLOCKED', RL, '回到 EntryList 重新排队'), B: TS('RUNNABLE', L, '持有锁')}}},
+    {t: 'B 退出同步块：释放锁，叫醒 A', d: 'monitorexit 把 Owner 清空，再从 EntryList 叫醒 A。B 的线程结束。', hl: [{p: 'B', i: 3, t: 'B'}], chg: ['thB'], s: {mark: MK.heavy, lr: false, mon: {owner: null, entry: ['A'], wait: []}, th: {A: TS('BLOCKED', RL, '已被唤醒，正在抢锁'), B: X}}},
+    {t: 'A 重新拿到锁，从 wait() 返回', d: 'A 成为 Owner，回到 while 再检查一次 ready：这次是 true，跳出循环执行 use()。', hl: [{p: 'A', i: 1, t: 'A'}, {p: 'A', i: 4, t: 'A'}], chg: ['thA'], s: {mark: MK.heavy, lr: false, mon: {owner: 'A', entry: [], wait: []}, th: {A: TS('RUNNABLE', L, '持有锁'), B: X}}},
+    {t: 'A 退出：monitor 空了，对象头还指向它', d: '三个区域都空了，但对象头仍然指向这个 ObjectMonitor：<b>正在使用的重量级锁不会退回轻量级锁</b>。', hl: [{p: 'A', i: 5, t: 'A'}], chg: ['thA'], s: {mark: MK.heavy, lr: false, mon: {owner: null, entry: [], wait: []}, th: {A: X, B: X}}},
+    {t: '稍后：JVM 回收空闲的 monitor', d: 'JDK 15 起，后台线程会异步回收不再使用的 monitor：把 _header 里保管的原 Mark Word 写回对象头，对象回到无锁状态，hashCode 也还在。', hl: [], chg: ['mark'], s: {mark: MK.hashed, lr: false, mon: null, monNote: '已被回收：原 Mark Word 写回了对象头。下次再有竞争，会重新膨胀。', th: {A: X, B: X}}}
+  ];
+}
+
+/* ===================== 3.5 锁升级 ===================== */
+const RUNGS = [['无锁', '001'], ['偏向锁', '101 · 比较线程指针'], ['轻量级锁', '00 · 一次 CAS'], ['重量级锁', '10 · 抢不到就 park']];
+const UP_CODE = () => [
+  {id: 'main', title: 'main 线程', lines: ['Object lock = new Object();']},
+  {id: 'T1', title: '线程 T1', lines: ['synchronized (lock) { … }   // 第一次', 'synchronized (lock) { … }   // 第二次']},
+  {id: 'T2', title: '线程 T2', lines: ['synchronized (lock) {', '    work();                 // 持锁一段时间', '}']},
+  {id: 'T3', title: '线程 T3', lines: ['synchronized (lock) { … }']}
+];
+function upStage(s, st) {
+  const ladder = '<div class="ladder">' + RUNGS.map((r, i) => '<div class="rung' + (i === s.lv ? ' on' : i < s.lv ? ' past' : '') + '"><b>' + r[0] + '</b><span>' + r[1] + '</span></div>').join('') + '</div>';
+  const thr = '<div class="grid2" style="grid-template-columns:repeat(3,minmax(0,1fr))">' + ['T1', 'T2', 'T3'].map(t => '<div class="box lane' + chg(st, 'th' + t) + '"><div class="lane-h">' + th(t) + pill(s.th[t][0]) + '</div><span class="note">' + (s.th[t][1] || '') + '</span></div>').join('') + '</div>';
+  return '<div class="stack-v">' + ladder + '<div class="box' + chg(st, 'mark') + '"><div class="mw-head"><span class="rk">Mark Word</span><code>' + s.hex + '</code></div>' + bitGrid(s.hex, s.kind) + '</div>' +
+    '<div class="box"><span class="rk">这次加锁的代价</span><div>' + s.cost + '</div></div>' + (s.mon ? '<div class="box"><div class="box-h">ObjectMonitor</div>' + zones(s.mon) + '</div>' : '') + thr + '</div>';
+}
+function upSteps() {
+  const N = ['NEW', '还没执行到'], X = ['TERMINATED', '已结束'];
+  return [
+    {t: 'new 出对象：匿名偏向', d: '假设偏向锁是开启的（JDK 8 默认开启；JDK 15 起默认关闭）。新对象的 Mark Word 末三位是 <b>101</b>，线程指针全是 0，叫“匿名偏向”：可以偏向，但还没偏向任何线程。', hl: [{p: 'main', i: 0, t: 'main'}], chg: ['mark'],
+      s: {lv: 1, hex: '0x0000000000000005', kind: 'biased', cost: '还没有加锁', th: {T1: N, T2: N, T3: N}}},
+    {t: 'T1 第一次加锁：CAS 写入线程指针', d: 'T1 用<b>一次 CAS</b> 把自己的线程指针写进 Mark Word，对象从此偏向 T1。', hl: [{p: 'T1', i: 0, t: 'T1'}], chg: ['mark', 'thT1'],
+      s: {lv: 1, hex: '0x000000014300e005', kind: 'biased', cost: '一次 CAS', th: {T1: ['RUNNABLE', '持有锁'], T2: N, T3: N}}},
+    {t: 'T1 退出同步块：什么都不改', d: '偏向锁退出时<b>不撤销</b>，线程指针留在对象头里，等着 T1 下次再来。', hl: [{p: 'T1', i: 0, t: 'T1'}],
+      s: {lv: 1, hex: '0x000000014300e005', kind: 'biased', cost: '释放时什么都不做', th: {T1: ['RUNNABLE', '已退出同步块'], T2: N, T3: N}}},
+    {t: 'T1 再次加锁：只比较一下', d: 'Mark Word 里的线程指针就是自己，直接进入。<b>连 CAS 都不用</b>：这就是偏向锁省掉的开销。', hl: [{p: 'T1', i: 1, t: 'T1'}], chg: ['thT1'],
+      s: {lv: 1, hex: '0x000000014300e005', kind: 'biased', cost: '比较一下线程指针，没有任何原子操作', th: {T1: ['RUNNABLE', '持有锁（第二次）'], T2: N, T3: N}}},
+    {t: 'T2 来加锁：先撤销偏向', d: 'T1 已经结束，T2 来加锁，发现对象偏向的是别人，就要<b>撤销偏向</b>：等全局安全点（所有线程暂停，STW），检查 T1 是否还在同步块里。T1 不在，于是对象回到无锁状态。', hl: [{p: 'T2', i: 0, t: 'T2'}], chg: ['mark', 'thT2'],
+      s: {lv: 0, hex: '0x0000000000000001', kind: 'unlocked', cost: '等全局安全点（STW）撤销偏向，这一步很贵', th: {T1: X, T2: ['RUNNABLE', '正在加锁'], T3: N}}},
+    {t: 'T2 用 CAS 加上轻量级锁', d: 'T2 在自己的栈帧里建 Lock Record，用一次 CAS 把 Mark Word 换成指向它的指针，末两位 <b>00</b>。', hl: [{p: 'T2', i: 0, t: 'T2'}, {p: 'T2', i: 1, t: 'T2'}], chg: ['mark'],
+      s: {lv: 2, hex: '0x000000016bddaad0', kind: 'thin', cost: '一次 CAS（地址取自 3.3 节实测，仅作示意）', th: {T1: X, T2: ['RUNNABLE', '持有锁'], T3: N}}},
+    {t: 'T2 还没放锁，T3 来抢：膨胀为重量级', d: 'T3 的 CAS 失败，出现了真正的竞争。锁膨胀成重量级，末两位 <b>10</b>，Mark Word 指向 ObjectMonitor。T3 自适应自旋几轮仍拿不到，就 park 挂起。', hl: [{p: 'T3', i: 0, t: 'T3'}], chg: ['mark', 'thT3'],
+      s: {lv: 3, hex: '0x000000012693e942', kind: 'heavy', cost: 'T3 自旋失败后 park：进内核挂起，微秒级', mon: {owner: 'T2', entry: ['T3'], wait: []}, th: {T1: X, T2: ['RUNNABLE', '持有锁'], T3: ['BLOCKED', '在 EntryList 等锁']}}},
+    {t: 'T2 释放锁，唤醒 T3', d: 'T2 退出时从 EntryList 叫醒 T3（unpark，同样要进内核）。之后这把锁一直是重量级，直到空闲后被 JVM 回收（3.4 节）。', hl: [{p: 'T2', i: 2, t: 'T2'}], chg: ['thT2', 'thT3'],
+      s: {lv: 3, hex: '0x000000012693e942', kind: 'heavy', cost: 'unpark 唤醒 T3：进内核', mon: {owner: 'T3', entry: [], wait: []}, th: {T1: X, T2: X, T3: ['RUNNABLE', '持有锁']}}}
+  ];
+}
+
+/* ===================== 注册与挂载 ===================== */
+const LABS = {
+  objlayout: objLayout,
+  monitordemo: el => stepLab(el, {title: '跟着 MonitorStateDemo 走一遍', intro: '和下面的程序是同一个场景：三个线程分别待在 Owner、EntryList、WaitSet。每一步都标出了此刻的线程状态和 jstack 里会看到的那一行。', code: () => MD_CODE, steps: mdSteps, stage: mdStage}),
+  statemachine: stateMachine,
+  notifydemo: el => stepLab(el, {title: '三个线程轮流打印：notify 为什么会卡死', intro: '同一个场景，切换 notify 和 notifyAll 对比。这也是单元十一“循环打印 ABC”最容易写错的地方。', variants: [{key: 'one', label: 'notify()'}, {key: 'all', label: 'notifyAll()'}], variantLabel: '唤醒方式', code: NT_CODE, steps: ntSteps, stage: ntStage}),
+  interruptdemo: el => stepLab(el, {title: '中断标志是怎么被“吞掉”的', intro: '盯住中断标志位这一个比特。切换 catch 里的写法，看线程能不能停下来。', variants: [{key: 'keep', label: 'catch 里恢复标志'}, {key: 'drop', label: 'catch 里什么都不做'}], variantLabel: 'catch 写法', code: IT_CODE, steps: itSteps, stage: itStage}),
+  race: raceLab,
+  min2: el => stepLab(el, {title: '各加 50 次，最小为什么是 2', intro: '把上面那段构造过程一步步放慢。', code: () => [{id: 'X', title: '两个线程都执行', lines: ['for (int i = 0; i < 50; i++) {', '    x++;   // 读 x → 加 1 → 写回 x', '}']}], steps: () => M2_STEPS, stage: m2Stage}),
+  visibility: el => stepLab(el, {title: '一个核写的值，另一个核为什么看不到', intro: '线程 A 把 stop 改成 true，线程 B 在另一个核上循环读 stop。切换“普通变量 / volatile”，对比写缓冲、缓存行和失效队列的变化。', variants: [{key: 'plain', label: '普通变量'}, {key: 'vol', label: 'volatile'}], variantLabel: '变量类型', code: v => VIS_CODE[v], steps: visSteps, stage: visStage}),
+  hb: el => stepLab(el, {kind: '推导链', title: '用 happens-before 推出 ④ 一定打印 42', intro: '一条边一条边地连。切换到“普通变量”，看链条从哪里断开。', variants: [{key: 'vol', label: 'ready 是 volatile'}, {key: 'plain', label: 'ready 是普通变量'}], variantLabel: 'ready 的类型', code: HB_CODE, steps: hbSteps, stage: hbStage}),
+  dcl: el => stepLab(el, {title: '没有 volatile 的 DCL 怎么拿到“半个对象”', intro: '两个线程同时调用 getInstance()。切换有无 volatile，对比 ② ③ 的执行顺序。', variants: [{key: 'plain', label: '没有 volatile'}, {key: 'vol', label: '加上 volatile'}], variantLabel: 'instance 的声明', code: DCL_CODE, steps: dclSteps, stage: dclStage}),
+  bytecode: el => stepLab(el, {title: '沿着字节码走一遍：正常出口和异常出口', intro: '同一段字节码，切换“正常执行 / 抛出异常”，看两条路径怎么都走到 monitorexit。', variants: [{key: 'ok', label: '正常执行'}, {key: 'ex', label: '抛出异常'}], variantLabel: '执行路径', code: BC_CODE, steps: bcSteps, stage: bcStage}),
+  markword: markWordLab,
+  lifecycle: el => stepLab(el, {kind: '综合演练', title: 'synchronized 的一生', intro: '把本单元串起来：一个对象从创建到被两个线程争抢，Mark Word 怎么变，ObjectMonitor 什么时候出现，线程怎么在三个区域之间移动。', code: LC_CODE, steps: lcSteps, stage: lcStage}),
+  upgrade: el => stepLab(el, {title: '锁升级：每一级省掉了什么', intro: '偏向锁打开时，一个对象先后被 T1、T2、T3 加锁。看 Mark Word 的比特怎么变，以及每次加锁付出的代价。', code: UP_CODE, steps: upSteps, stage: upStage})
+};
+$$('.lab-mount').forEach(el => {
+  const f = LABS[el.dataset.lab];
+  try { f(el); } catch (err) { el.innerHTML = '<p class="none">这个演示加载失败：' + esc(err.message) + '</p>'; if (window.console) console.error(err); }
+});
+
+/* ===================== 代码块高亮 / 复制 ===================== */
+$$('pre.codeblock').forEach(pre => {
+  const code = $('code', pre), raw = code.textContent;
+  if (pre.dataset.lang === 'java') code.innerHTML = raw.split('\n').map(hiJava).join('\n');
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'copy'; b.textContent = '复制';
+  b.onclick = () => {
+    const done = ok => { b.textContent = ok ? '已复制' : '请手动选中复制'; setTimeout(() => { b.textContent = '复制'; }, 1600); };
+    try { navigator.clipboard.writeText(raw).then(() => done(true), () => done(false)); } catch (e) { done(false); }
+  };
+  pre.insertBefore(b, code);
+});
+
+/* ===================== 自测 ===================== */
+const store = {get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* 浏览器不允许存储时忽略 */ } }};
+function quizProgress(sec) {
+  const all = $$('.qz', sec), ok = all.filter(q => $('.qz-cb', q).checked).length, p = $('.qz-progress', sec);
+  if (p) p.textContent = ok ? '已掌握 ' + ok + ' / ' + all.length : '';
+}
+$$('section.quiz').forEach(sec => {
+  $$('.qz', sec).forEach(q => {
+    const cb = $('.qz-cb', q), btn = $('.qz-show', q), ans = $('.qz-a', q), key = 'juc-course-' + q.dataset.qid;
+    cb.checked = store.get(key) === '1';
+    q.classList.toggle('done', cb.checked);
+    btn.onclick = () => { ans.hidden = !ans.hidden; btn.textContent = ans.hidden ? '看答案' : '收起答案'; btn.setAttribute('aria-expanded', String(!ans.hidden)); };
+    cb.onchange = () => { store.set(key, cb.checked ? '1' : '0'); q.classList.toggle('done', cb.checked); quizProgress(sec); };
+  });
+  quizProgress(sec);
+});
+
+/* ===================== 首页、目录、翻页 ===================== */
+const LATER = [
+  ['四', 'CAS 与原子类', '先比较再交换，失败了就重来。', false],
+  ['五', 'AQS', 'AQS 只管排队，抢锁的规则交给子类。', true],
+  ['六', '基于 AQS 的同步器', '换一种 state 的算法，就是一个新的同步器。', true],
+  ['七', '线程池', '先核心，再排队，排满了加线程，线程满了就拒绝。', true],
+  ['八', 'CompletableFuture', '别干等结果，先登记结果出来后要做什么。', false],
+  ['九', 'ThreadLocal', '数据挂在线程身上，ThreadLocal 只是钥匙。', false],
+  ['十', '并发容器与死锁', '锁越细并发越高，加锁顺序一乱就会死锁。', false],
+  ['十一', '手写实操题', '没轮到就等，干完改状态并叫醒别人。', false]
+];
+const MOT = ['Java 线程就是内核线程；排队、等待和唤醒都发生在对象的 monitor 上。', '写进了自己的缓存，不等于别人看得见。', '锁记在对象头里，能不进内核就不进内核。'];
+const home = $('#view-home');
+home.insertAdjacentHTML('afterbegin', '<header class="home-hero"><div class="eyebrow">Java 并发 · 交互学习版 · 试点：单元一到三</div><h1>JUC 交互学习手册</h1>' +
+  '<p class="lead">正文和文档版一致。在文字讲不清“同一时刻”的地方，嵌入了可以一步步执行的演示：高亮的代码行是这一步正在执行的代码，旁边是这一刻对象头、缓存和等待队列里发生的变化。</p>' +
+  '<p class="hint">演示的用法：先点一下演示卡片，再用 ← → 翻步、空格自动播放。每个单元末尾的自测题可以点开看答案。</p>' +
+  '<ol class="unitmap">' + TOC.map((u, i) => '<li class="ready"><span class="un">单元' + u.cn + '</span><span class="nm">' + esc(u.title) + '</span><span class="mt">' + MOT[i] + '</span><div class="lk"><a class="go" href="#' + u.id + '">开始学习</a></div></li>').join('') +
+  LATER.map(u => '<li><span class="un">单元' + u[0] + '</span><span class="nm">' + u[1] + '</span><span class="mt">' + u[2] + '</span><div class="lk"><a href="' + DOC_URL + '" target="_blank" rel="noopener">文档版</a>' + (u[3] ? '<a href="' + LAB_URL + '" target="_blank" rel="noopener">可视化实验</a>' : '') + '</div></li>').join('') + '</ol></header>');
+
+const toc = $('#toc');
+toc.innerHTML = '<a href="#home" class="toc-u" data-u="home">导读</a>' + TOC.map(u => '<div class="toc-unit" data-u="' + u.id + '"><a href="#' + u.id + '" class="toc-u" data-u="' + u.id + '"><span class="toc-n">单元' + u.cn + '</span>' + esc(u.title) + '</a><ol class="toc-s">' + u.sections.map(s => '<li><a href="#' + s.id + '" data-s="' + s.id + '">' + esc(s.title) + '</a></li>').join('') + '</ol></div>').join('') +
+  '<div class="toc-sep">还在文档版</div>' + LATER.map(u => '<div class="toc-later"><span class="toc-n">单元' + u[0] + '</span>' + u[1] + '</div>').join('');
+TOC.forEach((u, i) => {
+  const v = $('#view-' + u.id), prev = i === 0 ? ['#home', '导读'] : ['#' + TOC[i - 1].id, '单元' + TOC[i - 1].cn + ' ' + TOC[i - 1].title], next = TOC[i + 1] ? ['#' + TOC[i + 1].id, '单元' + TOC[i + 1].cn + ' ' + TOC[i + 1].title] : null;
+  v.insertAdjacentHTML('beforeend', '<nav class="pager" aria-label="翻页"><a href="' + prev[0] + '"><span>上一篇</span><b>' + esc(prev[1]) + '</b></a>' + (next ? '<a href="' + next[0] + '" style="text-align:right"><span>下一篇</span><b>' + esc(next[1]) + '</b></a>' : '<a href="' + DOC_URL + '" target="_blank" rel="noopener" style="text-align:right"><span>下一篇（文档版）</span><b>单元四 CAS 与原子类</b></a>') + '</nav>');
+});
+$('#toc-btn').onclick = () => { const s = $('#side'), open = !s.classList.contains('open'); s.classList.toggle('open', open); $('#toc-btn').setAttribute('aria-expanded', String(open)); };
+
+/* ===================== 路由与滚动高亮 ===================== */
+let curView = null, spy = null;
+function show(view, sec) {
+  if (curView !== view) {
+    STOPPERS.forEach(f => f());
+    $$('.view').forEach(v => { v.hidden = v.dataset.view !== view; });
+    curView = view;
+    $$('.toc-u').forEach(a => a.classList.toggle('on', a.dataset.u === view));
+    $$('.toc-unit').forEach(d => d.classList.toggle('open', d.dataset.u === view));
+    setupSpy(view);
+  }
+  $('#side').classList.remove('open'); $('#toc-btn').setAttribute('aria-expanded', 'false');
+  const target = sec && document.getElementById(sec);
+  if (target) target.scrollIntoView({block: 'start'}); else window.scrollTo(0, 0);
+}
+function setupSpy(view) {
+  if (spy) spy.disconnect();
+  if (!('IntersectionObserver' in window)) return;
+  const secs = $$('#view-' + view + ' section[id]');
+  spy = new IntersectionObserver(ents => {
+    ents.forEach(en => {
+      if (!en.isIntersecting) return;
+      $$('.toc-s a').forEach(a => a.classList.toggle('on', a.dataset.s === en.target.id));
+    });
+  }, {rootMargin: '0px 0px -70% 0px'});
+  secs.forEach(s => spy.observe(s));
+}
+function route() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  const m = h.match(/^(u\d+)(?:-[a-z0-9]+)?$/);
+  if (m && document.getElementById('view-' + m[1])) show(m[1], h === m[1] ? null : h);
+  else show('home', null);
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[href^="#"]');
+  if (!a) return;
+  const h = a.getAttribute('href');
+  if (h === location.hash) { e.preventDefault(); route(); }
+});
+window.addEventListener('hashchange', route);
+route();
+})();
+</script>
+
+</body>
+</html>
