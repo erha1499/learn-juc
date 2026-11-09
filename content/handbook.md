@@ -14,21 +14,21 @@
 4. **AQS**：CAS + volatile state + 等待队列 + park/unpark，搭出一个通用的“排队取锁”框架；ReentrantLock、Semaphore、CountDownLatch 都只是在它上面改了“state 怎么算”。
 5. **工程层**：线程池管理线程，CompletableFuture 编排异步任务，ThreadLocal 隔离数据，并发容器替代手动加锁。
 
-### 单元顺序与面试权重
+### 单元顺序
 
-| 单元 | 一句话核心 | 依赖前置 | 面试权重 |
-| --- | --- | --- | --- |
-| 一 线程基础 | 线程是什么、怎么跑、怎么停 | 无 | 高（开场题） |
-| 二 JMM 与 volatile | 三大问题从哪来，volatile 解决了哪两个 | 一 | 高 |
-| 三 synchronized | 对象头 + monitor，锁升级为了少进内核 | 二 | 极高 |
-| 四 CAS 与原子类 | 无锁的乐观并发，AQS 的地基 | 二 | 高 |
-| 五 AQS | state + CLH 队列 + park/unpark | 三、四 | 极高 |
-| 六 AQS 同步器 | ReentrantLock、Semaphore 等只是改了 state 的含义 | 五 | 极高 |
-| 七 线程池 | 7 个参数 + 一张执行流程图 | 一、六 | 极高 |
-| 八 CompletableFuture | Future 的缺点与异步编排 | 七 | 中高 |
-| 九 ThreadLocal | Thread 里挂一张 Map，弱引用与泄漏 | 一 | 高 |
-| 十 并发容器与死锁 | CHM、COW、阻塞队列，死锁四条件 | 四、六 | 中 |
-| 十一 手写题 | 用 synchronized / Lock / Semaphore 做线程协作 | 三、六 | 高（笔试/手撕） |
+| 单元 | 一句话核心 | 依赖前置 |
+| --- | --- | --- |
+| 一 线程基础 | 线程是什么、怎么跑、怎么停 | 无 |
+| 二 JMM 与 volatile | 三大问题从哪来，volatile 解决了哪两个 | 一 |
+| 三 synchronized | 对象头 + monitor，锁升级为了少进内核 | 二 |
+| 四 CAS 与原子类 | 无锁的乐观并发，AQS 的地基 | 二 |
+| 五 AQS | state + CLH 队列 + park/unpark | 三、四 |
+| 六 AQS 同步器 | ReentrantLock、Semaphore 等只是改了 state 的含义 | 五 |
+| 七 线程池 | 7 个参数 + 一张执行流程图 | 一、六 |
+| 八 CompletableFuture | Future 的缺点与异步编排 | 七 |
+| 九 ThreadLocal | Thread 里挂一张 Map，弱引用与泄漏 | 一 |
+| 十 并发容器与死锁 | CHM、COW、阻塞队列，死锁四条件 | 四、六 |
+| 十一 手写题 | 用 synchronized / Lock / Semaphore 做线程协作 | 三、六 |
 
 ### 怎么用这份文档
 
@@ -49,11 +49,11 @@
 
 本单元的核心：Java 线程就是操作系统线程（1:1），创建、切换、阻塞都要操作系统出手，有实实在在的成本。这是后面“锁优化”和“线程池”存在的理由。
 
-**学习目标**
+**学完这个单元，你能：**
 
-- 必会：1.4 创建线程与 start/run、1.5 对象的三个组成部分与 Monitor 的三个区域、1.6 六种状态及转换、1.7 sleep 与 wait、1.9 停止线程
-- 加分：1.2 虚拟线程、1.3 用户态与内核态、1.5 用 jstack 看线程卡在 monitor 的哪里、1.9 interrupt 的底层、“等 ReentrantLock 的线程是 WAITING”
-- 了解：1.3 上下文切换、1.5 Mark Word 的位布局、1.10 守护线程与 yield
+- 说清进程和线程的区别，以及为什么局部变量天然线程安全。
+- 说出线程的 6 种状态，分清“等锁”的 BLOCKED 和“等通知”的 WAITING。
+- 用中断正确地停止一个线程，并处理好 InterruptedException。
 
 ### 1.1 进程与线程
 
@@ -68,9 +68,8 @@
 
 ### 1.2 Java 线程和操作系统线程
 
-- JDK 1.2 之前是“绿色线程”：JVM 自己模拟调度，用不了多核。
-- 之后是**平台线程，一个 Java 线程对应一个内核线程（1:1）**，调度交给 OS。所以创建一个线程要分配栈（默认 1MB）、要系统调用，成本不低。
-- JDK 21 的**虚拟线程**是 M:N：大量虚拟线程挂在少量“载体线程”（ForkJoinPool）上，遇到 IO 阻塞时从载体上卸下，不占内核线程。适合 IO 密集，不适合 CPU 密集。早期版本在 `synchronized` 块里阻塞会“钉住（pinning）”载体线程，JDK 24 起已修复。
+- 现在的 Java 线程是**平台线程，一个 Java 线程对应一个内核线程（1:1）**，调度交给 OS。所以创建一个线程要分配栈（默认 1MB）、要系统调用，成本不低。
+- JDK 21 的**虚拟线程**是 M:N：大量虚拟线程挂在少量“载体线程”（ForkJoinPool）上，遇到 IO 阻塞时从载体上卸下，不占内核线程。适合 IO 密集，不适合 CPU 密集。
 - 与 Go 协程对比：goroutine 也是 M:N，初始栈只有几 KB 且可伸缩，由 Go 运行时调度；传统 Java 线程由 OS 调度。虚拟线程就是 Java 对这一点的补课。
 
 ### 1.3 并发、并行与“为什么用多线程”
@@ -107,7 +106,7 @@ Integer r = task.get(); // 阻塞等结果
 executor.submit(() -> 1 + 1);
 ```
 
-面试加分说法：上面都只是“定义任务”的方式，**真正创建线程的只有 `new Thread().start()`**。FutureTask 本身就是一个 Runnable，线程池内部也是 new Thread。
+上面都只是“定义任务”的方式，**真正创建线程的只有 `new Thread().start()`**。FutureTask 本身就是一个 Runnable，线程池内部也是 new Thread。
 
 **start() 和 run() 的区别**：`start()` 调用 native 的 `start0()`，让 JVM 创建内核线程，该线程就绪后再回调 `run()`。直接调 `run()` 只是在当前线程里执行了一个普通方法。同一个线程 `start()` 两次会抛 `IllegalThreadStateException`（threadStatus 不为 0）。
 
@@ -126,7 +125,7 @@ executor.submit(() -> 1 + 1);
 
 上排是主线；下排三种等待状态都从 RUNNABLE 进入，也都回到 RUNNABLE。
 
-**BLOCKED 和 WAITING 的区别**（高频）：BLOCKED 是在**等锁**，抢 synchronized 的锁没抢到，锁一释放就自动去抢；WAITING 是在**等通知**，自己主动停下，必须等别的线程 notify、unpark 或中断它。单元三会看到，这两种线程分别待在 monitor 的两个不同区域。
+**BLOCKED 和 WAITING 的区别**：BLOCKED 是在**等锁**，抢 synchronized 的锁没抢到，锁一释放就自动去抢；WAITING 是在**等通知**，自己主动停下，必须等别的线程 notify、unpark 或中断它。单元三会看到，这两种线程分别待在 monitor 的两个不同区域。
 
 一个反直觉的点：**等 `ReentrantLock` 的线程是 WAITING，不是 BLOCKED**。因为 AQS 是用 `LockSupport.park()` 挂起线程的（见单元五）。用 jstack 看到大量 `WAITING (parking)` 就是这个原因。
 
@@ -164,16 +163,7 @@ t.interrupt();
 - `Thread.stop()` 已废弃：它会立刻释放线程持有的所有锁，可能让对象停在“改了一半”的状态。
 - 线程池里的任务：`future.cancel(true)` 或 `shutdownNow()`，底层也是 interrupt。
 
-### 1.7 线程间通信与其他
-
-线程间通信按“机制”分类，每种对应后面的一个单元：
-
-- 共享内存 + `volatile`（单元二）。
-- `synchronized` + `wait/notify`（单元三）。
-- `Lock` + `Condition`、`Semaphore`、`CountDownLatch`、`CyclicBarrier`（单元六）。
-- `BlockingQueue`（单元十）、`join()`、`Future`（单元八）、管道流 `PipedInputStream`。
-
-其他知识点：
+### 1.7 守护线程、join 与 yield
 
 - **守护线程**：`setDaemon(true)` 且必须在 start 前调用。所有非守护线程结束后 JVM 就退出，守护线程的 finally 不保证执行。GC 线程就是守护线程。
 - **join()**：底层是 `while (isAlive()) wait(0)`，线程结束时 JVM 会调 `notifyAll`。
@@ -199,11 +189,11 @@ t.interrupt();
 
 本单元的核心：并发 bug 来自三个硬件/编译器优化，JMM 用 happens-before 给出可见性承诺，volatile 用内存屏障兑现其中的**可见性和有序性，但不管原子性**。
 
-**学习目标**
+**学完这个单元，你能：**
 
-- 必会：2.0 两个现象、2.1 三大问题、2.5 volatile 的两个作用、2.6 不保证原子性、2.7 DCL
-- 加分：2.2 缓存行、MESI 与写缓冲、2.4 happens-before 推导、2.1 “最小结果是 2”
-- 了解：2.3 三种重排序
+- 用两段能跑的代码，说清可见性、有序性、原子性三类问题从哪来。
+- 用 synchronized 修好一段线程不安全的代码。
+- 说清 volatile 能保证什么、不能保证什么，并写出正确的 DCL 单例。
 
 ### 2.0 先看现象：两段会出错的代码
 
@@ -299,7 +289,7 @@ synchronized (lockObj) { }               // 锁括号里的对象
 
 `getfield` 读、`iadd` 加、`putfield` 写回，是三条独立的指令。线程可以在任意两条之间被切走，读和写回之间只要插进别的线程的写，就会丢一次更新。JIT 编译成机器码后，也仍然是读、加、写三步。
 
-**场景题：两个线程各对 `int x = 0` 执行 50 次 `x++`，结果可能是多少？** 答：最大 100；大多数人会答最小 50，但理论最小是 **2**。构造方式：A 读到 0 后被挂起；B 跑完 49 次；A 写回 1；B 读到 1 后被挂起；A 跑完剩下 49 次；B 写回 2。能说出这个构造过程很加分。
+**场景题：两个线程各对 `int x = 0` 执行 50 次 `x++`，结果可能是多少？** 答：最大 100；大多数人会答最小 50，但理论最小是 **2**。构造方式：A 读到 0 后被挂起；B 跑完 49 次；A 写回 1；B 读到 1 后被挂起；A 跑完剩下 49 次；B 写回 2。
 
 ### 2.3 底层预备：从 CPU 缓存到 JMM
 
@@ -330,7 +320,7 @@ CPU 算得太快、内存太慢，所以每个核和内存之间隔着好几层�
 
 **定义**：如果 A happens-before B，那么 A 的结果对 B 可见，且 A 的执行顺序看起来在 B 之前。它说的是**可见性**，不是时间上的先后；JVM 可以重排，只要结果不违反这个关系。
 
-常考的 6 条规则：
+最常用的 6 条规则：
 
 1. **程序顺序规则**：同一线程内，前面的操作 hb 后面的操作。
 2. **监视器锁规则**：解锁 hb 之后对同一把锁的加锁。
@@ -419,12 +409,6 @@ synchronized 只保证锁内的线程看到正确结果，第一次检查在锁�
 | 是否阻塞 | 不阻塞 | 可能阻塞 |
 | 性能 | 轻量，读几乎和普通变量一样 | 经锁优化后也不差，但重度竞争时要进内核 |
 
-### 2.9 保证线程安全的三类手段（总览）
-
-- **互斥同步（悲观锁）**：`synchronized`、`ReentrantLock` → 单元三、六。
-- **非阻塞同步（乐观锁）**：CAS、原子类、版本号 → 单元四。
-- **无同步方案**：不共享就不会出问题——局部变量、`ThreadLocal`（单元九）、不可变对象（`final`、String）。
-
 ### 面试这样说
 
 **问：导致并发程序出问题的根本原因是什么？**
@@ -450,11 +434,11 @@ synchronized 只保证锁内的线程看到正确结果，第一次检查在锁�
 
 本单元的核心：synchronized 锁的是**对象**，锁的状态记在对象头的 Mark Word 里。锁升级的全部意义只有一个：**能不进内核就不进内核**。
 
-**学习目标**
+**学完这个单元，你能：**
 
-- 必会：3.4 Monitor 的 Owner / EntryList / WaitSet 与线程流转、3.5 锁升级、3.7 与 ReentrantLock 的区别
-- 加分：3.3 用代码打印 Mark Word、“hashCode 与偏向锁”、偏向锁为什么被废弃、3.4 重量级锁为什么“重”
-- 了解：3.2 字节码与异常表、3.6 锁消除与锁粗化
+- 说清没抢到锁的线程在哪里排队，调用 wait 的线程又在哪里等。
+- 正确使用 wait/notify：写在 synchronized 里，用 while 检查条件，多数情况用 notifyAll。
+- 说出锁升级的四个状态，以及每一级省掉了什么开销。
 
 单元二用 synchronized 修好了卖票程序（2.1 节）。本单元回答：这一个关键字在 JVM 里到底做了什么。
 
@@ -627,7 +611,7 @@ waiter 被唤醒并重新拿到了锁
 
 **为什么等锁的队列有两个（\_cxq 和 \_EntryList）？** 新来的线程要并发地入队，用 CAS 压进 `_cxq` 最便宜（它是单向链表，后进先出）。释放锁时只有 Owner 一个线程在操作，它把 `_cxq` 里的线程挪到 `_EntryList`，再从 `_EntryList` 挑一个唤醒。这样“很多线程同时入队”只需要 CAS，“出队”完全不用额外同步。学习时把两者统称为“等锁队列”就够了。
 
-**monitor 什么时候创建、什么时候回收？** 锁膨胀时创建：轻量级锁遇到竞争，或者在锁里调用了 wait（3.4 节 MarkWordDemo 的第 5、7 行会验证这一点）。不再使用的 monitor 会被 JVM 回收（JDK 15 起由后台线程异步完成），对象回到无锁状态。所以常说的“锁不降级”，准确意思是：正在被使用的重量级锁，不会退回轻量级锁。
+**monitor 什么时候创建、什么时候回收？** 锁膨胀时创建：轻量级锁遇到竞争，或者在锁里调用了 wait（3.4 节 MarkWordDemo 的第 5、7 行会验证这一点）。不再使用的 monitor 会被 JVM 回收，对象回到无锁状态。所以常说的“锁不降级”，准确意思是：正在被使用的重量级锁，不会退回轻量级锁。
 
 重量级锁为什么“重”：park/unpark 最终依赖 OS 的 mutex/futex，线程挂起和唤醒要在用户态和内核态之间切换，一次可能要微秒级，而临界区代码可能只要几纳秒。
 
@@ -811,9 +795,9 @@ int[] 第一个元素的偏移量 = 16
 - **第 5 行**：另一个线程来抢，末两位变成 10，锁膨胀成重量级，地址指向 ObjectMonitor。抢锁线程是 BLOCKED，待在 EntryList。
 - **第 6、7 行**：**没有任何竞争**，只是同一个线程在锁里调了一次 wait，锁也膨胀成了重量级。因为只有 ObjectMonitor 才有 WaitSet，轻量级锁没有地方放等待的线程。
 
-运行说明：JDK 17 默认关闭偏向锁，所以第 1 行直接是无锁。编译时会有“Unsafe 是内部专用 API”的警告，可以忽略。JDK 23 起默认换成了新的轻量级锁实现，加锁后 Mark Word 不再存 Lock Record 地址，第 3 行的输出会不同；本文以 JDK 8\~17 的经典实现为准。
+运行说明：JDK 17 默认关闭偏向锁，所以第 1 行直接是无锁。编译时会有“Unsafe 是内部专用 API”的警告，可以忽略。
 
-一个很有区分度的问题：**对象调用过 `hashCode()` 后还能进入偏向锁吗？** 不能。偏向锁要把线程 ID 写进 Mark Word，和 hashCode 抢同一块位置。已计算 hash 的对象直接走轻量级；偏向状态下调用 hashCode 会导致偏向撤销。轻量级和重量级没这个问题，因为原 Mark Word 被保存在 Lock Record 或 monitor 里了。
+**对象调用过 `hashCode()` 后还能进入偏向锁吗？** 不能。偏向锁要把线程 ID 写进 Mark Word，和 hashCode 抢同一块位置。已计算 hash 的对象直接走轻量级；偏向状态下调用 hashCode 会导致偏向撤销。轻量级和重量级没这个问题，因为原 Mark Word 被保存在 Lock Record 或 monitor 里了。
 
 这个结论也能跑出来。在 JDK 17 上用 `-XX:+UseBiasedLocking -XX:BiasedLockingStartupDelay=0` 重新打开偏向锁（会提示参数已废弃），对一个新对象依次加锁、释放、调用 hashCode，Mark Word 的变化如下（整理后的实测输出）：
 
@@ -839,8 +823,7 @@ JDK 1.6 之前 synchronized 一上来就是重量级锁。1.6 引入了分级：
 - 第一次加锁时，用一次 CAS 把线程 ID 写进 Mark Word。
 - 之后同一个线程再进入，只比较一下线程 ID，**连 CAS 都不用**。退出时也不主动撤销偏向。
 - 另一个线程来加锁时，要**撤销偏向**：等全局安全点（safepoint：JVM 让所有 Java 线程都停在已知位置的时刻，也就是 STW，GC 也靠它），检查原线程是否还在同步块里，再升级为轻量级。这一步很贵。
-- 优化：同一个类的对象撤销太多次（默认 20 次）触发批量重偏向，达到 40 次批量撤销，该类不再偏向。
-- **JDK 15 起偏向锁默认关闭并被废弃（JEP 374）**。原因：撤销要 STW，收益只在旧式同步集合（Vector、Hashtable）上明显；现代应用大多是线程池、多线程竞争，得不偿失；且代码复杂、维护成本高。
+- **JDK 15 起偏向锁默认关闭并被废弃**。原因：撤销要 STW，收益只在旧式同步集合（Vector、Hashtable）上明显；现代应用大多是线程池、多线程竞争，得不偿失；且代码复杂、维护成本高。
 
 **② 轻量级锁：针对“多个线程交替加锁，但几乎不同时抢”**
 
@@ -849,7 +832,7 @@ JDK 1.6 之前 synchronized 一上来就是重量级锁。1.6 引入了分级：
 3. CAS 失败：如果 Mark Word 指向的就是自己的栈，说明是重入，再放一个空的 Lock Record 计数；否则说明有竞争，**膨胀为重量级锁**。
 4. 解锁时用 CAS 把 Displaced Mark Word 换回去。
 
-关于“自旋”的一个注意点：面试资料常说“轻量级锁 CAS 失败后自旋，自旋失败才升级”。严格来说，HotSpot 是先膨胀出 ObjectMonitor，在重量级锁的入口做**自适应自旋**，还拿不到才 park。两种说法都能来，能说出后者更加分。
+关于“自旋”：常见的说法是“轻量级锁 CAS 失败后自旋，自旋失败才升级”。在 HotSpot 里，实际是先膨胀出 ObjectMonitor，在重量级锁的入口做**自适应自旋**，还拿不到才 park。
 
 **③ 重量级锁：针对“真正的激烈竞争”**
 
@@ -899,11 +882,11 @@ JDK 1.6 之前 synchronized 一上来就是重量级锁。1.6 引入了分级：
 
 本单元的核心：CAS 是一条 CPU 原子指令，“先比较再交换”。它不阻塞线程，失败就重试。原子类、AQS、ConcurrentHashMap 的底层都是它。
 
-**学习目标**
+**学完这个单元，你能：**
 
-- 必会：4.1 悲观锁与乐观锁、4.2 CAS 原理、4.3 CAS 的三个问题
-- 加分：4.5 LongAdder 的分散热点思路、“为什么不能所有锁都用 CAS”
-- 了解：4.4 原子类分类
+- 说清 CAS 是什么，为什么不加锁也能保证原子性。
+- 说出 CAS 的三个问题和对应的解决办法。
+- 知道什么时候用 AtomicLong、什么时候用 LongAdder。
 
 ### 4.1 悲观锁与乐观锁
 
@@ -923,9 +906,9 @@ JDK 1.6 之前 synchronized 一上来就是重量级锁。1.6 引入了分级：
 CAS(V, E, N)：如果内存位置 V 的值等于预期值 E，就把它更新为 N，返回成功；否则什么都不做，返回失败。**比较和交换是一条指令完成的**，中间不会被打断。
 
 - 硬件：x86 的 `cmpxchg` 指令，多核下加 `lock` 前缀，锁住该缓存行（早期是锁总线）。`lock` 前缀同时起到内存屏障作用，所以 CAS 也有 volatile 读写的内存语义。
-- Java：`sun.misc.Unsafe` 的 native 方法 `compareAndSwapInt(Object o, long offset, int expected, int x)`，用“对象 + 字段偏移量”定位内存。偏移量就是字段离对象开头有多少字节：对象头占 12 字节（3.4 节），所以在 JDK 17 上实测，AtomicInteger 里 value 的偏移量正好是 12。JDK 9 之后推荐用 `VarHandle`。
+- Java：`sun.misc.Unsafe` 的 native 方法 `compareAndSwapInt(Object o, long offset, int expected, int x)`，用“对象 + 字段偏移量”定位内存。偏移量就是字段离对象开头有多少字节：对象头占 12 字节（3.4 节），所以在 JDK 17 上实测，AtomicInteger 里 value 的偏移量正好是 12。
 
-`AtomicInteger` 的自增实现（JDK 8）：
+`AtomicInteger` 的自增实现：
 
 ```java
 public class AtomicInteger {
@@ -979,7 +962,7 @@ ref.compareAndSet(100, 101, stamp, stamp + 1);  // 值和版本号都对才成�
 | 数组 | `AtomicIntegerArray`、`AtomicReferenceArray` | 按下标原子更新 |
 | 引用 | `AtomicReference`、`AtomicStampedReference`、`AtomicMarkableReference` | 后两个解决 ABA |
 | 字段更新器 | `AtomicIntegerFieldUpdater` 等 | 对已有类的 volatile 字段做 CAS，不用每个对象包一个 Atomic |
-| 累加器 | `LongAdder`、`LongAccumulator` | JDK 8，高并发计数 |
+| 累加器 | `LongAdder`、`LongAccumulator` | 高并发计数 |
 
 ### 4.5 LongAdder：用“分散热点”解决自旋问题
 
@@ -1022,11 +1005,11 @@ CAS 是工具，AQS 是用它搭的框架。AQS 里用 CAS 的地方：修改 `s
 
 本单元的核心：AQS = **volatile int state（资源状态）+ 双向 FIFO 等待队列 + CAS + LockSupport.park/unpark**。AQS 负责“抢不到怎么排队、怎么睡、怎么叫醒”，子类只负责“state 怎么算抢到了”。
 
-**学习目标**
+**学完这个单元，你能：**
 
-- 必会：5.1 三个组成部分、5.3 和 5.4 的加锁、释放流程（能说出“先试→入队→睡→被叫醒再试”）
-- 加分：为什么从队尾往前找、为什么用双向链表、5.6 Condition 的队列转移、5.7 手写公平锁
-- 了解：5.5 共享模式的传播、JDK 14 后的源码变化
+- 用“先试、入队、睡下、被叫醒再试”四步，讲清 AQS 怎么管理抢锁的线程。
+- 说清 state、等待队列、park/unpark 各自负责什么。
+- 说清 Condition 和 wait/notify 的对应关系。
 
 类比记忆：把 AQS 想成银行的一个窗口。state 是窗口上方“有人 / 空闲”的指示灯，用 CAS 保证一次只有一个人能把灯拨到“有人”；等待队列是叫号排队的座椅区，坐下的人闭眼休息（park）；前一个人办完，就拍醒后面那个人（unpark）。公平锁不许插队，非公平锁允许刚进门的人趁窗口空着直接上去。
 
@@ -1068,7 +1051,7 @@ private transient volatile Node head, tail;
 - `head` 是一个**虚节点（哨兵）**，代表“当前持有锁的那个人”，它的 thread 字段是 null。
 - waitStatus：`SIGNAL(-1)` 表示“我释放时要叫醒后继”，`CANCELLED(1)` 表示超时或中断取消了，`CONDITION(-2)` 表示在条件队列，`PROPAGATE(-3)` 用于共享模式传播，`0` 是初始值。
 
-**CLH 是什么，为什么 SIGNAL 记在前驱身上**：CLH 锁以三位发明者（Craig、Landin、Hagersten）命名，原本是一种自旋锁。等锁的线程排成一条链，每个线程只盯着**前驱节点**上的一个状态位自旋，前驱释放锁时改掉这个状态位，后继就知道轮到自己了。AQS 保留了“看前驱”的思路，做了两处改动：把自旋改成 park，不再空转 CPU；加上 next 指针变成双向链表，方便唤醒后继和移除取消的节点。所以 5.3 节里，线程睡下前要把**前驱**的 waitStatus 设成 SIGNAL，意思是“你释放锁时记得叫醒我”。
+**CLH 是什么，为什么 SIGNAL 记在前驱身上**：CLH 锁原本是一种自旋锁。等锁的线程排成一条链，每个线程只盯着**前驱节点**上的一个状态位自旋，前驱释放锁时改掉这个状态位，后继就知道轮到自己了。AQS 保留了“看前驱”的思路，做了两处改动：把自旋改成 park，不再空转 CPU；加上 next 指针变成双向链表，方便唤醒后继和移除取消的节点。所以 5.3 节里，线程睡下前要把**前驱**的 waitStatus 设成 SIGNAL，意思是“你释放锁时记得叫醒我”。
 
 **③ LockSupport.park/unpark**：挂起和唤醒指定线程。和 wait/notify 的区别：不需要先拿锁；可以精确唤醒某个线程；基于“许可证”，**先 unpark 再 park 也不会阻塞**（许可证最多 1 个，不累加），所以不会丢失唤醒。
 
@@ -1083,7 +1066,7 @@ private transient volatile Node head, tail;
 
 这是典型的**模板方法模式**：`acquire` 的流程是固定的，只有 `tryAcquire` 这一步是可变的。`tryAcquireShared` 的返回值有讲究：负数 = 失败，0 = 成功但没有剩余，正数 = 成功且还有剩余（要继续唤醒后面的共享节点）。
 
-### 5.3 独占获取：acquire 源码流程（JDK 8）
+### 5.3 独占获取：acquire 流程
 
 ```java
 public final void acquire(int arg) {
@@ -1133,7 +1116,7 @@ public final boolean release(int arg) {
 
 ### 5.7 练习：用 AQS 写一个可重入的公平锁
 
-这是小林coding 里的题。能写出来，说明你真的理解了“AQS 管排队、子类管 state”。
+能写出来，说明你真的理解了“AQS 管排队、子类管 state”。
 
 ```java
 public class MyFairLock {
@@ -1182,8 +1165,6 @@ public class MyFairLock {
 }
 ```
 
-版本说明：JDK 14 之后 AQS 源码重写过（Node 拆成子类、acquire 合并成一个大方法），但 state + 队列 + park 的原理不变。面试按 JDK 8 讲即可。
-
 ### 面试这样说
 
 **问：什么是 AQS？**
@@ -1206,18 +1187,18 @@ public class MyFairLock {
 
 本单元的核心：学完单元五后，每个同步器只需要记两件事——**state 代表什么**、**tryAcquire/tryRelease 怎么改 state**。排队和唤醒全是 AQS 做的。
 
-**学习目标**
+**学完这个单元，你能：**
 
-- 必会：6.1 公平与非公平的实现差异、6.4 Semaphore、6.5 CountDownLatch
-- 加分：非公平吞吐量高的原因、6.2 读写锁的升降级、6.3 StampedLock 乐观读
-- 了解：6.6 CyclicBarrier 的实现
+- 说清公平锁和非公平锁差在哪一步，以及非公平锁为什么更快。
+- 在 synchronized 和 ReentrantLock 之间做出选择。
+- 用 Semaphore 限制并发数，用 CountDownLatch 等多个任务完成。
 
 ### 6.1 ReentrantLock：公平与非公平
 
 结构：内部类 `Sync extends AQS`，再分出 `NonfairSync`（默认）和 `FairSync`。`new ReentrantLock(true)` 是公平锁。
 
 ```java
-// 非公平锁（JDK 8）
+// 非公平锁
 final void lock() {
     if (compareAndSetState(0, 1))                  // 第一次插队：不管队列，直接抢
         setExclusiveOwnerThread(Thread.currentThread());
@@ -1292,7 +1273,7 @@ try {
 
 ### 6.4 StampedLock：带乐观读的读写锁
 
-- JDK 8 引入，**不基于 AQS**（自己实现了类似的 CLH 队列和 state）。
+- **不基于 AQS**（自己实现了类似的 CLH 队列和 state）。
 - 三种模式：写锁、悲观读锁、**乐观读**。乐观读完全不加锁，只拿一个版本号 stamp，读完后校验期间有没有写入。
 - 性能更好的原因：读多写少时，大部分读操作连 CAS 都不用，而且乐观读不阻塞写，没有写饥饿。
 - 限制：**不可重入**、不支持 Condition，在读锁/写锁上被中断可能导致 CPU 飙升。所以只适合内部工具类，不能作为 ReentrantReadWriteLock 的通用替代。
@@ -1327,7 +1308,7 @@ try {
 
 ### 6.6 CountDownLatch：一个等多个
 
-- 用途：主线程等 N 个子任务都完成再继续。小林coding 场景题“3 个线程并发执行，第 4 个等它们全部完成”就用它。
+- 用途：主线程等 N 个子任务都完成再继续。典型场景：3 个线程并发执行，第 4 个等它们全部完成。
 - 原理：**state = 计数值 N**。
   - `countDown()` → `tryReleaseShared`：CAS 把 state 减 1，减到 0 时返回 true，触发唤醒。
   - `await()` → `tryAcquireShared`：`return state == 0 ? 1 : -1`，不为 0 就进队列等。
@@ -1357,10 +1338,6 @@ System.out.println("三个任务都完成了");
 | 能否重用 | 不能 | 能，自动重置 |
 | 底层 | AQS 共享模式 | ReentrantLock + Condition |
 | 回调 | 无 | 可以指定 barrierAction |
-
-### 6.8 除了 synchronized，还有哪些同步手段
-
-面试问这个问题时，按本文的单元顺序回答最清楚：`volatile`（单元二）、CAS 和原子类（单元四）、`ReentrantLock` / 读写锁 / `StampedLock`、`Semaphore` / `CountDownLatch` / `CyclicBarrier`（本单元）、并发容器和阻塞队列（单元十）、`ThreadLocal`（单元九）。
 
 ### 面试这样说
 
@@ -1392,11 +1369,11 @@ System.out.println("三个任务都完成了");
 
 本单元的核心：线程池是一个**生产者-消费者模型**。提交任务的线程是生产者，阻塞队列是缓冲区，Worker 线程是消费者。线程“复用”的秘密，就是 Worker 的 run 方法里有一个不停从队列取任务的循环。
 
-**学习目标**
+**学完这个单元，你能：**
 
-- 必会：7.2 七个参数、7.3 执行流程、7.4 拒绝策略、7.5 为什么不用 Executors、7.8 线程数怎么设、7.10 项目场景
-- 加分：7.6 线程复用原理、7.7 任务异常后线程的去向、动态调参
-- 了解：优先级线程池、7.9 设计模式
+- 说出线程池 7 个参数的含义，以及提交任务后的 4 步判断。
+- 说清线程池里的线程为什么能复用。
+- 为业务设置合理的线程数、有界队列和拒绝策略。
 
 类比记忆：线程池像银行。核心线程是常开的窗口，队列是等候区的椅子，非核心线程是人太多时临时加开的“救急窗口”，空闲一段时间就关掉，等候区也坐满了就开始对新来的人“拒绝接待”。
 
@@ -1442,7 +1419,7 @@ public ThreadPoolExecutor(int corePoolSize,
 
 从上往下读：只有队列放不下时，才会去创建非核心线程；连 max 也满了，才触发拒绝策略。
 
-反直觉的点：**是先进队列，队列满了才扩到 max 线程**。所以用无界队列时，maximumPoolSize 完全不起作用。这个设计偏向 CPU 密集型任务。Tomcat 的线程池为了 IO 密集型请求改成了“先扩线程到 max，再进队列”。
+反直觉的点：**是先进队列，队列满了才扩到 max 线程**。所以用无界队列时，maximumPoolSize 完全不起作用。这个设计偏向 CPU 密集型任务。有些 Web 服务器的线程池为了 IO 密集型请求，改成了“先扩线程到 max，再进队列”。
 
 ### 7.4 四种拒绝策略
 
@@ -1454,7 +1431,7 @@ public ThreadPoolExecutor(int corePoolSize,
 | DiscardOldestPolicy | 丢掉队列里最老的任务，再重试提交 | 新任务比旧任务重要 |
 
 - **希望尽量不丢任务**：选 CallerRunsPolicy。它还自带“反压”效果：调用方忙于执行任务，就没空继续提交了。
-- **CallerRunsPolicy 的风险**：如果提交者是 Tomcat 请求线程或主线程，一个慢任务就会堵住它，导致接口大面积变慢。解决：合理设置队列和线程数；或自定义拒绝策略，把任务持久化到数据库或 MQ，稍后再拉取执行。
+- **CallerRunsPolicy 的风险**：如果提交者是处理 Web 请求的线程或主线程，一个慢任务就会堵住它，导致接口大面积变慢。解决：合理设置队列和线程数；或自定义拒绝策略，把任务持久化到数据库或 MQ，稍后再拉取执行。
 
 ### 7.5 阻塞队列与内置线程池
 
@@ -1466,7 +1443,7 @@ public ThreadPoolExecutor(int corePoolSize,
 | DelayedWorkQueue | 按延迟时间排序的堆，无界 | ScheduledThreadPool |
 | PriorityBlockingQueue | 优先级堆，无界 | 优先级线程池 |
 
-**为什么不推荐用 Executors 内置线程池**（《阿里巴巴 Java 开发手册》强制）：
+**为什么不推荐用 Executors 内置线程池**：
 
 - `FixedThreadPool`、`SingleThreadExecutor`：队列几乎无界，任务堆积导致 **OOM**。
 - `CachedThreadPool`：max 是 `Integer.MAX_VALUE`，任务多时无限建线程导致 **OOM**。
@@ -1544,11 +1521,11 @@ final void runWorker(Worker w) {
 - **IO 密集型**：2N 起步。更精确的公式是 N × (1 + 等待时间 / 计算时间)。比如一个请求 90% 时间在等数据库，8 核机器大约 8 × 10 = 80。
 - 公式只是起点，需要**压测 + 监控**（队列积压、活跃线程数、拒绝次数）来调。不同业务应该用不同的线程池做隔离，避免互相拖累。
 
-**动态修改参数**（美团技术团队的做法）：
+**动态修改参数**：
 
 - `setCorePoolSize`、`setMaximumPoolSize` 是现成的，运行时调用即可生效。
 - 队列容量是 final 的，要自定义一个可调容量的队列（把 capacity 的 final 去掉）。
-- 把参数放到配置中心（Nacos/Apollo），监听变更后调用 setter。开源实现有 Dynamic-TP、Hippo4j。
+- 把参数放到配置中心，监听到变更后调用这些 setter。
 
 **按优先级执行的线程池**：队列用 `PriorityBlockingQueue`，任务实现 `Comparable` 或传入 Comparator。注意三点：它是无界队列，要自己限制大小防 OOM；低优先级任务可能饥饿，可以按等待时长提升优先级；`submit` 会把任务包成 FutureTask，导致不可比较，要用 execute，或重写 `newTaskFor`。
 
@@ -1617,11 +1594,11 @@ log.info("全部 {} 页导入完成", pages);
 
 本单元的核心：Future 只能阻塞地等一个结果；CompletableFuture 让你提前登记“结果出来后做什么”，把多个异步任务串联、并联起来，且不阻塞。
 
-**学习目标**
+**学完这个单元，你能：**
 
-- 必会：8.1 Future 的不足、8.2 常用 API、8.3 一个任务依赖两个、8.5 为什么要自定义线程池
-- 加分：8.4 异常处理、父子任务共用线程池导致死锁
-- 了解：8.6 实现原理
+- 说清 Future 有哪些不足。
+- 用 CompletableFuture 串联、合并多个异步任务，并处理异常。
+- 知道为什么要给它传自定义线程池。
 
 ### 8.1 Future 与 FutureTask
 
@@ -1713,11 +1690,11 @@ CompletableFuture 内部有两个关键字段：`volatile Object result`（结�
 
 本单元的核心：**数据不在 ThreadLocal 里，而在 Thread 里**。每个 Thread 有一个 `ThreadLocalMap`，ThreadLocal 对象只是这张 Map 的 key。理解了这条引用链，内存泄漏问题就能自己推出来。
 
-**学习目标**
+**学完这个单元，你能：**
 
-- 必会：9.1 用途、9.2 数据存在哪、key 和 value 是什么、9.3 内存泄漏与 remove
-- 加分：key 为什么用弱引用、线程池里的脏数据、9.4 TransmittableThreadLocal
-- 了解：哈希冲突的线性探测、ScopedValue
+- 说清 ThreadLocal 的数据存在哪里。
+- 顺着引用链解释内存泄漏，养成用完就 remove 的习惯。
+- 知道在线程池里怎么把父线程的值传给任务。
 
 类比记忆：每个线程是一个人，身上背着自己的储物柜（ThreadLocalMap）；ThreadLocal 对象只是一把钥匙，大家用同一把钥匙，开的却是各自的柜子，所以互不干扰。
 
@@ -1795,18 +1772,17 @@ static class Entry extends WeakReference<ThreadLocal<?>> {
 
 **线程池场景的另一个风险：脏数据**。线程被复用，上一个请求 set 的用户信息没清掉，下一个请求 get 到的就是别人的数据。这在线上是安全事故，比泄漏更严重。
 
-**解决办法只有一个：用完在 finally 里 `remove()`**。《阿里巴巴 Java 开发手册》强制要求在线程池场景下回收自定义 ThreadLocal，尤其用 try-finally。另外，ThreadLocal 一般声明为 `static final`，避免重复创建。注意：static 字段一直强引用着它，key 永远不会被 GC，弱引用的自动清理也就不生效了，所以更必须手动 remove。
+**解决办法只有一个：用完在 finally 里 `remove()`**。另外，ThreadLocal 一般声明为 `static final`，避免重复创建。注意：static 字段一直强引用着它，key 永远不会被 GC，弱引用的自动清理也就不生效了，所以更必须手动 remove。
 
 ### 9.4 父子线程传递
 
 - **InheritableThreadLocal**：在 `new Thread()` 时，把父线程的 `inheritableThreadLocals` 复制一份给子线程（默认是浅拷贝，可重写 `childValue` 定制）。
 - 它的问题：**只在创建线程时复制一次**。线程池里的线程是早就创建好的，后续提交任务时不会再复制，任务拿到的是创建线程那一刻的旧值。
-- **TransmittableThreadLocal（阿里开源 TTL）**：把“复制”的时机从创建线程改到**提交任务**。用 `TtlRunnable` 包装任务（或用 Java Agent 自动包装线程池），分三步：
+- **TransmittableThreadLocal（TTL）**：把“复制”的时机从创建线程改到**提交任务**。用 `TtlRunnable` 包装任务（或用 Java Agent 自动包装线程池），分三步：
   1. capture：提交时抓取父线程当前的值。
   2. replay：任务执行前把这些值设到工作线程上，并备份工作线程原来的值。
   3. restore：执行完恢复原值。
 - 应用：全链路追踪的 traceId、多租户的租户 ID 在异步线程中传递。
-- 延伸：JDK 21 的 `ScopedValue`（预览）是为虚拟线程设计的替代品，不可变且有明确的作用域，没有泄漏问题。
 
 ### 面试这样说
 
@@ -1825,11 +1801,11 @@ static class Entry extends WeakReference<ThreadLocal<?>> {
 
 本单元的核心：并发容器是前面所有工具的综合应用——ConcurrentHashMap 用 CAS + synchronized + LongAdder 思路，阻塞队列用 ReentrantLock + Condition。死锁则是用锁不当的典型后果。
 
-**学习目标**
+**学完这个单元，你能：**
 
-- 必会：10.1 ConcurrentHashMap 的 JDK 7 与 8 实现、10.3 死锁四条件、预防与排查
-- 加分：为什么 CHM 不允许 null、为什么锁桶用 synchronized、CopyOnWriteArrayList 的弱一致性
-- 了解：阻塞队列的四组方法
+- 说清 ConcurrentHashMap 怎么保证线程安全。
+- 根据场景选出合适的并发容器。
+- 说出死锁的四个条件，会预防，会用 jstack 排查。
 
 ### 10.1 ConcurrentHashMap 怎么保证线程安全
 
@@ -1939,10 +1915,11 @@ void transfer(Account from, Account to, int amount) {
 
 本单元的核心：线程协作题只有一个模板——**共享状态 + “没轮到就等、干完改状态并叫醒别人”**。不同工具只是“等”和“叫醒”的实现不同。以下代码均已在 JDK 17 上编译运行通过。
 
-**学习目标**
+**学完这个单元，你能：**
 
-- 必会：11.1 写法一和写法二、11.2 奇偶打印、11.3 生产者-消费者、11.4 等待与顺序执行
-- 加分：11.1 的 Semaphore 和 LockSupport 写法、11.5 手写线程池
+- 用“没轮到就等，干完改状态并叫醒别人”这个模板写出常见的线程协作题。
+- 用 synchronized、ReentrantLock + Condition、Semaphore 各实现一遍循环打印。
+- 避开 if 代替 while、错用 notify、忘记在 finally 里解锁这三个常见错误。
 
 练习方法：先只看题目和下面的对比表，自己在 IDE 里写，跑通了再对照答案。写不出来时，回到本单元开头的模板“没轮到就等、干完改状态并叫醒别人”。
 
@@ -1987,7 +1964,7 @@ public class PrintABCSync {
 // 输出：ABCABCABCABCABCABCABCABCABCABC
 ```
 
-**写法二：ReentrantLock + 三个 Condition**（精准唤醒，面试官最想看的）
+**写法二：ReentrantLock + 三个 Condition**（精准唤醒）
 
 ```java
 import java.util.concurrent.locks.*;
@@ -2287,13 +2264,6 @@ public class MiniThreadPool {
     }
 }
 ```
-
-### 11.6 其他常见手写题
-
-- **DCL 单例**：见 2.7 节。
-- **手写死锁 + 修复**：见 10.3 节。
-- **用 AQS 实现可重入公平锁**：见 5.7 节。
-- **两线程各加 50 次的结果范围**：见 2.2 节。
 
 ## 附录 高频面试题速查表
 

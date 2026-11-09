@@ -281,15 +281,10 @@ def render_unit(lines, cn):
         if not sec_open:
             if b['t'] == 'p' and b['text'].startswith('本单元的核心'):
                 out.append('<p class="core">%s</p>' % inline(b['text']))
-            elif b['t'] == 'p' and b['text'] == '**学习目标**':
+            elif b['t'] == 'p' and b['text'] == '**学完这个单元，你能：**':
                 goals = blocks[i + 1]
                 assert goals['t'] == 'list'
-                rows = []
-                for it in goals['items']:
-                    lab, _, rest = it['text'].partition('：')
-                    rows.append('<div class="g-row"><span class="g-tag g-%s">%s</span><span>%s</span></div>' % (
-                        {'必会': 'must', '加分': 'plus', '了解': 'know'}[lab], lab, inline(rest)))
-                out.append('<div class="goals"><div class="g-h">学习目标</div>%s</div>' % ''.join(rows))
+                out.append('<div class="goals"><div class="g-h">学完这个单元，你能</div><ul>%s</ul></div>' % ''.join('<li>%s</li>' % inline(it['text']) for it in goals['items']))
                 i += 2
                 continue
             else:
