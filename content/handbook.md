@@ -1037,10 +1037,9 @@ try {
 
 ### 6.4 StampedLock：带乐观读的读写锁
 
-- **不基于 AQS**（自己实现了类似的 CLH 队列和 state）。
-- 三种模式：写锁、悲观读锁、**乐观读**。乐观读完全不加锁，只拿一个版本号 stamp，读完后校验期间有没有写入。
-- 性能更好的原因：读多写少时，大部分读操作连 CAS 都不用，而且乐观读不阻塞写，没有写饥饿。
-- 限制：**不可重入**、不支持 Condition，在读锁/写锁上被中断可能导致 CPU 飙升。所以只适合内部工具类，不能作为 ReentrantReadWriteLock 的通用替代。
+读多写少时比读写锁更快：读的时候先不加锁，只拿一个版本号（stamp），读完再检查这期间有没有人写过；有人写过，才退回去加读锁重读。代价是它不可重入、不支持 Condition，所以一般只用在性能敏感的内部工具类里，不能直接替换 ReentrantReadWriteLock。
+
+#### 深入一层（可跳过）：乐观读的写法
 
 ```java
 long stamp = sl.tryOptimisticRead();   // 乐观读，不加锁
@@ -1112,14 +1111,6 @@ System.out.println("三个任务都完成了");
 **问：synchronized 和 Lock 有什么区别？**
 
 > 第一，层面不同：synchronized 是 JVM 关键字，Lock 是 JDK 的接口，常用实现是基于 AQS 的 ReentrantLock。第二，使用方式：synchronized 自动释放，异常也会释放；Lock 要在 finally 里手动 unlock。第三，功能：Lock 支持公平锁、可中断、超时获取和多个 Condition 精准唤醒，synchronized 都不支持。两者都是可重入的悲观锁。竞争不激烈时 synchronized 有锁升级优化，性能差不多，所以简单场景优先 synchronized，需要高级功能时用 Lock。
-
-**问：如何控制某个方法允许并发访问的线程数？**
-
-> 用 Semaphore 信号量。创建时指定许可证数量，比如 3；进入方法前调 acquire 拿一个许可，拿不到就排队等待，执行完在 finally 里 release 归还。如果不想让请求等，可以用 tryAcquire 快速失败，实现限流。它底层是 AQS 的共享模式，state 就是剩余许可数。
-
-**问：CountDownLatch 是做什么的？和 CyclicBarrier 有什么区别？**
-
-> CountDownLatch 是倒计时锁，用来让一个线程等多个任务完成。创建时传入计数 N，每个任务完成调 countDown 减一，等待的线程调 await，计数归零时被唤醒。它基于 AQS 共享模式，state 就是计数，用一次就失效。CyclicBarrier 是多个线程互相等，都到达屏障点后再一起继续，可以循环使用，底层是 ReentrantLock 加 Condition。
 
 ### 自测
 
