@@ -1215,17 +1215,9 @@ ThreadPoolExecutor pool = new ThreadPoolExecutor(
 
 线程命名：用 Guava 的 `ThreadFactoryBuilder`，或自己实现 `ThreadFactory`。出问题时 jstack 能一眼看出是哪个业务的线程。
 
-### 7.6 底层原理：ctl、Worker 与线程复用
+### 7.6 底层原理：线程是怎么复用的
 
-**① ctl：一个变量存两个信息**。`AtomicInteger ctl` 的高 3 位是运行状态，低 29 位是线程数。放在一起是为了用一次 CAS 同时判断和修改“状态 + 数量”，不用加锁。五种状态：
-
-- **RUNNING**：接收新任务，处理队列任务。
-- **SHUTDOWN**：调了 `shutdown()`。不接收新任务，但会把队列里的任务处理完。
-- **STOP**：调了 `shutdownNow()`。不接收新任务，清空队列并返回未执行的任务，中断正在运行的线程。
-- **TIDYING**：线程和任务都清空了，将调用 `terminated()` 钩子。
-- **TERMINATED**：`terminated()` 执行完毕。
-
-**② Worker：线程的包装**。`Worker extends AQS implements Runnable`，持有一个 `Thread` 和它的第一个任务 `firstTask`。Worker 自己就是传给 Thread 的 Runnable，线程启动后执行 `runWorker`：
+**Worker：线程的包装**。`Worker extends AQS implements Runnable`，持有一个 `Thread` 和它的第一个任务 `firstTask`。Worker 自己就是传给 Thread 的 Runnable，线程启动后执行 `runWorker`：
 
 ```java
 final void runWorker(Worker w) {
@@ -1250,7 +1242,18 @@ final void runWorker(Worker w) {
 - **核心线程和非核心线程在代码里没有标记**，只按“当前数量是否 > corePoolSize”决定谁用 poll。
 - **核心线程会被回收吗？** 默认不会。调 `allowCoreThreadTimeOut(true)` 后也会按 keepAliveTime 回收。
 - **核心线程空闲时是什么状态？** 阻塞在 `workQueue.take()` 上。队列内部用 Condition.await，底层是 park，所以是 **WAITING**。
-- **Worker 为什么要继承 AQS，实现一把不可重入锁？** 用锁状态表示“是否在执行任务”。`shutdown()` 只中断能 `tryLock` 成功的线程，也就是空闲线程，不打断正在干活的。不可重入是为了防止任务里调用 `setCorePoolSize` 等方法时，线程把自己中断了。
+
+#### 深入一层（可跳过）：ctl 与 Worker 的锁
+
+**ctl：一个变量存两个信息**。`AtomicInteger ctl` 的高 3 位是运行状态，低 29 位是线程数。放在一起是为了用一次 CAS 同时判断和修改“状态 + 数量”，不用加锁。五种状态：
+
+- **RUNNING**：接收新任务，处理队列任务。
+- **SHUTDOWN**：调了 `shutdown()`。不接收新任务，但会把队列里的任务处理完。
+- **STOP**：调了 `shutdownNow()`。不接收新任务，清空队列并返回未执行的任务，中断正在运行的线程。
+- **TIDYING**：线程和任务都清空了，将调用 `terminated()` 钩子。
+- **TERMINATED**：`terminated()` 执行完毕。
+
+**Worker 为什么要继承 AQS，实现一把不可重入锁？** 用锁状态表示“是否在执行任务”。`shutdown()` 只中断能 `tryLock` 成功的线程，也就是空闲线程，不打断正在干活的。不可重入是为了防止任务里调用 `setCorePoolSize` 等方法时，线程把自己中断了。
 
 ### 7.7 异常、提交与关闭
 
@@ -1268,7 +1271,9 @@ final void runWorker(Worker w) {
 
 **提交的任务能撤回吗？** 能。`future.cancel(false)` 可以取消还没开始的任务；`cancel(true)` 还会对正在执行的线程调 interrupt，但任务是否停下取决于它是否响应中断。也可以用 `pool.remove(runnable)` 从队列中移除。
 
-**核心线程数设为 0 可以吗？** 可以。任务会先进队列，`execute` 的二次检查发现线程数为 0，会创建一个非核心线程来处理。但如果队列很大，就只有这一个线程在干活，空闲超时后线程数会回到 0。
+#### 深入一层（可跳过）：核心线程数设为 0 会怎样
+
+可以。任务会先进队列，`execute` 的二次检查发现线程数为 0，会创建一个非核心线程来处理。但如果队列很大，就只有这一个线程在干活，空闲超时后线程数会回到 0。
 
 ### 7.8 参数怎么设
 
@@ -1276,25 +1281,13 @@ final void runWorker(Worker w) {
 - **IO 密集型**：2N 起步。更精确的公式是 N × (1 + 等待时间 / 计算时间)。比如一个请求 90% 时间在等数据库，8 核机器大约 8 × 10 = 80。
 - 公式只是起点，需要**压测 + 监控**（队列积压、活跃线程数、拒绝次数）来调。不同业务应该用不同的线程池做隔离，避免互相拖累。
 
-**动态修改参数**：
+**动态修改参数**：`setCorePoolSize`、`setMaximumPoolSize` 可以在运行时调用，配合配置中心就能不重启调整线程数；队列容量是 final 的，要改得自定义队列。
 
-- `setCorePoolSize`、`setMaximumPoolSize` 是现成的，运行时调用即可生效。
-- 队列容量是 final 的，要自定义一个可调容量的队列（把 capacity 的 final 去掉）。
-- 把参数放到配置中心，监听到变更后调用这些 setter。
+需要按优先级执行任务时，可以把队列换成 `PriorityBlockingQueue`，但它是无界队列，要自己控制任务数量，防止撑爆内存。
 
-**按优先级执行的线程池**：队列用 `PriorityBlockingQueue`，任务实现 `Comparable` 或传入 Comparator。注意三点：它是无界队列，要自己限制大小防 OOM；低优先级任务可能饥饿，可以按等待时长提升优先级；`submit` 会把任务包成 FutureTask，导致不可比较，要用 execute，或重写 `newTaskFor`。
+### 7.9 项目里哪里会用到多线程
 
-### 7.9 线程池里的设计模式
-
-- **生产者-消费者**：提交者 → 阻塞队列 → Worker。
-- **策略模式**：可替换的拒绝策略。
-- **工厂模式**：ThreadFactory。
-- **模板方法**：`beforeExecute`、`afterExecute`、`terminated` 钩子。
-- **池化（享元思想）**：复用线程。
-
-### 7.10 项目场景：你们项目哪里用到了多线程
-
-这是出现频率很高的问题，答的时候要结合自己简历上的模块。下面是四个可以套用到大多数业务里的场景：
+下面四个场景，基本能套到大多数业务里：
 
 | 场景 | 做法 | 用到的工具 |
 | --- | --- | --- |
@@ -1322,10 +1315,6 @@ for (int p = 1; p <= pages; p++) {
 latch.await(30, TimeUnit.MINUTES);       // 加超时，防止一直卡住
 log.info("全部 {} 页导入完成", pages);
 ```
-
-回答模板（括号里换成你自己的真实情况，数字不要编造）：
-
-> 我在（某项目）里做过（某功能）。当时的问题是（数据量大，串行导入太慢 / 要串行调用多个服务，响应时间长）。我用了（线程池 + CountDownLatch / CompletableFuture）把任务并行化，线程池是自己用 ThreadPoolExecutor 创建的，核心线程数按（IO 密集型的估算 + 压测）设置，队列有界，拒绝策略用的是（CallerRuns）。最后（耗时从 X 降到 Y）。
 
 ### 面试这样说
 
@@ -2024,7 +2013,7 @@ public class MiniThreadPool {
 
 面试前快速过一遍。一句话答法答不出展开部分，就回到对应单元重读。
 
-这张表是各单元「面试这样说」的压缩版：先用一句话答出框架，面试官追问时再展开成单元末尾那段口述。场景题另见：“项目里哪里用到多线程”看 7.10，“控制方法并发数”看 6.4，“T1、T2、T3 按顺序执行”看 11.4。
+这张表是各单元「面试这样说」的压缩版：先用一句话答出框架，面试官追问时再展开成单元末尾那段口述。场景题另见：“项目里哪里用到多线程”看 7.9，“控制方法并发数”看 6.5，“T1、T2、T3 按顺序执行”看 11.4。
 
 | 问题 | 一句话答法 | 单元 |
 | --- | --- | --- |
