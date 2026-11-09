@@ -615,100 +615,25 @@ if (ready) {      // ③ volatile 读
 <p class="hint">先自己回答，再点开答案对照；勾上“我会了”的题会记在这台设备的浏览器里。<span class="qz-progress"></span></p><ol class="quizlist"><li class="qz" data-qid="u2-q1"><div class="qz-q">有了 MESI，为什么还需要 volatile？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>MESI 本身能保证缓存一致，但 CPU 为了不等待，在它前面加了<b>写缓冲</b>和<b>失效队列</b>，于是会出现“写了别人暂时看不到”和“顺序看起来被打乱”。另外 JIT 还可能把读提到循环外。volatile 让 JIT 插入内存屏障（清空写缓冲、处理失效队列），并禁止这类编译优化。</div></li><li class="qz" data-qid="u2-q2"><div class="qz-q">用 happens-before 解释上面的 data/ready 例子。</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>① <code>data = 42</code> hb ② <code>ready = true</code>（程序顺序规则）；② hb ③ 读到 ready 为 true（volatile 规则）；③ hb ④ <code>print(data)</code>（程序顺序规则）。由传递性得到 ① hb ④，所以 ④ 一定能看到 42。去掉 volatile，② 和 ③ 之间就没有任何规则相连，结论就推不出来了。</div></li><li class="qz" data-qid="u2-q3"><div class="qz-q">DCL 去掉 volatile 会出什么问题？去掉第二次检查呢？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>去掉 volatile：<code>new Singleton()</code> 的“执行构造方法”和“把引用赋给 instance”可能重排，另一个线程在锁外的第一次检查看到 instance 不为 null，就拿走一个还没初始化完的对象。去掉第二次检查：两个线程都通过第一次检查后排队进锁，后进锁的线程不再检查，会再 new 一个，单例被破坏。</div></li><li class="qz" data-qid="u2-q4"><div class="qz-q">两个线程各加 50 次，最小结果为什么是 2？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>构造方法：A 读到 0 后被切走；B 完整执行 49 次，x = 49；A 回来写回 1，B 的 49 次全被覆盖；B 第 50 次读到 1 后被切走；A 执行完剩下的 49 次，x = 50；B 回来写回 2。关键是两次“读到旧值、挂起很久、再写回覆盖别人”。</div></li></ol>
 </section></div><!--PAGER-u2--></article>
 <article class="view" id="view-u3" data-view="u3" hidden><div class="prose"><header class="u-head"><div class="u-no">单元三</div><h1>synchronized</h1><p class="u-sub">对象头 + monitor + 锁升级</p><p class="motto">锁记在对象头里，能不进内核就不进内核。</p></header>
-<p class="core">本单元的核心：synchronized 锁的是<strong>对象</strong>，锁的状态记在对象头的 Mark Word 里。锁升级的全部意义只有一个：<strong>能不进内核就不进内核</strong>。</p>
+<p class="core">本单元的核心：synchronized 锁的是<strong>对象</strong>。抢不到锁的线程在对象的 monitor 里排队，锁的状态记在对象头的 Mark Word 里。锁升级的全部意义只有一个：<strong>能不进内核就不进内核</strong>。</p>
 <div class="goals"><div class="g-h">学完这个单元，你能</div><ul><li>说清没抢到锁的线程在哪里排队，调用 wait 的线程又在哪里等。</li><li>正确使用 wait/notify：写在 synchronized 里，用 while 检查条件，多数情况用 notifyAll。</li><li>说出锁升级的四个状态，以及每一级省掉了什么开销。</li></ul></div>
-<p>单元二用 synchronized 修好了卖票程序（2.1 节）。本单元回答：这一个关键字在 JVM 里到底做了什么。</p>
-<p>顺序是：先看它编译成了什么（3.1），再看抢不到锁的线程在哪里排队（3.2），然后是在锁里等待和唤醒（3.3），接着看锁的状态怎么记在对象头里（3.4），最后把这些串成锁升级的全过程（3.5）。</p>
+<p>单元二用 synchronized 修好了卖票程序（2.1 节）。本单元回答：这一个关键字在 JVM 里到底做了什么。顺序是：先看它编译成了什么（3.1），再看抢不到锁的线程在哪里排队（3.2），然后是在锁里等待和唤醒（3.3），接着看锁的状态怎么记在对象头里（3.4），最后把这些串成锁升级的全过程（3.5）。</p>
 <section id="u3-1"><h2>3.1 字节码层面</h2>
-<ul><li><strong>同步代码块</strong>：编译出 <code>monitorenter</code> 和 <code>monitorexit</code> 指令。通常有<strong>两个</strong> monitorexit：一个在正常返回路径，一个在异常路径。这就是 synchronized 抛异常也会自动释放锁的原因。</li><li><strong>同步方法</strong>：没有这两条指令，而是在方法的 access flags 里加一个 <code>ACC_SYNCHRONIZED</code>。JVM 调用方法时看到它，就先去拿锁。</li><li>两者最终都是去获取对象关联的 monitor。</li></ul>
-<p>用 <code>javap -c -v</code> 反编译下面这段代码，可以亲眼看到这两种形式：</p>
-<pre class="codeblock" data-lang="java"><code>public class SyncBytecode {
-    private final Object lock = new Object();
-    private int count;
-
-    public void block() {
-        synchronized (lock) { count++; }
-    }
-
-    public synchronized void method() { count++; }
-}</code></pre>
-<p>JDK 17 实测输出（节选，右侧中文注释是后加的）：</p>
-<pre class="codeblock" data-lang="text"><code>public void block();
-     0: aload_0
-     1: getfield      #7     // Field lock:Ljava/lang/Object;
-     4: dup
-     5: astore_1             // 把锁对象存进局部变量，留着解锁用
-     6: monitorenter         // 加锁
-     7: aload_0
-     ...                     // count++
-    17: aload_1
-    18: monitorexit          // 正常出口：解锁
-    19: goto          27
-    22: astore_2             // 异常出口：先把异常存起来
-    23: aload_1
-    24: monitorexit          //           解锁
-    25: aload_2
-    26: athrow               //           再把异常抛出去
-    27: return
-  Exception table:
-     from    to  target type
-         7    19    22   any
-        22    25    22   any
-
-public synchronized void method();
-  flags: (0x0021) ACC_PUBLIC, ACC_SYNCHRONIZED</code></pre>
-<p>异常表第一行的意思是：第 7~19 条指令（同步块内部）抛出任何异常，都跳到第 22 条，先 monitorexit 再 athrow。这就是“synchronized 抛异常也会释放锁”的底层保证。第二行覆盖的是异常处理代码自己，是 javac 加的保险。再留意第 5 条：锁对象在加锁前就存进了局部变量，解锁时用的是这份副本，所以加锁和解锁一定是同一个对象。</p>
+<ul><li><strong>同步代码块</strong>：编译出 <code>monitorenter</code> 和 <code>monitorexit</code> 两条指令，分别对应加锁和解锁。</li><li><strong>同步方法</strong>：没有这两条指令，而是在方法上打一个 <code>ACC_SYNCHRONIZED</code> 标记。JVM 调用方法时看到它，就先去加锁。</li><li>两者最终都是去获取对象关联的 monitor（3.2 节）。</li></ul>
+<p>同步代码块通常有<strong>两个</strong> monitorexit，一个在正常出口，一个在异常出口。编译器为同步块生成了一张异常表：块里抛出任何异常，都先跳到一段解锁代码，执行完 monitorexit 再把异常抛出去。这就是 synchronized 抛异常也会自动释放锁的原因，相当于编译器替你写好了 finally。完整的反编译输出可以用 <code>javap -c -v</code> 查看 <code>examples/SyncBytecode.java</code>。</p>
 <div class="lab-mount" data-lab="bytecode"></div>
 </section>
 <section id="u3-2"><h2>3.2 Monitor：抢不到锁的线程在哪里等</h2>
-<p>Monitor（管程，也叫监视器）是操作系统课里的经典同步机制：一把互斥锁，加上排队和等待用的队列，保证同一时刻只有一个线程在里面执行。Java 把它和对象绑在了一起：<code>synchronized(obj)</code> 就是进入 obj 的 monitor，<code>obj.wait()</code> 和 <code>obj.notify()</code> 就是在这个 monitor 的等待区里等和叫人。</p>
+<p>Monitor（管程，也叫监视器）是操作系统里的经典同步机制：一把互斥锁，加上排队和等待用的队列，保证同一时刻只有一个线程在里面执行。Java 把它和对象绑在了一起：<code>synchronized(obj)</code> 就是进入 obj 的 monitor，<code>obj.wait()</code> 和 <code>obj.notify()</code> 就是在这个 monitor 的等待区里等和叫人。</p>
 <p>HotSpot 用一个 C++ 对象 <code>ObjectMonitor</code> 实现 monitor。有三点最容易误解：</p>
 <ul><li><strong>它不在 Java 对象里</strong>，是 JVM 另外分配的一块内存。对象通过对象头里的 Mark Word 找到它（Mark Word 是对象头里记录锁状态的 8 个字节，3.4 节细讲）。</li><li><strong>不是每个对象一出生就有 monitor</strong>。出现锁竞争，或者在锁内调用 <code>wait()</code> 时，JVM 才给对象分配一个，这叫“锁膨胀”。没有竞争的 synchronized 根本用不到它（3.5 节的锁升级）。</li><li><strong>它内部分三个区域</strong>，线程待在哪个区域，决定了它在 Java 里是什么状态。</li></ul>
 <p>用一间诊室来类比这三个区域：</p>
 <div class="tbl"><table><thead><tr><th>区域</th><th>源码字段</th><th>诊室类比</th><th>线程状态</th></tr></thead><tbody><tr><td>Owner</td><td><code>_owner</code></td><td>正在诊室里看病的人，同一时刻最多一个</td><td>持有锁，通常是 RUNNABLE</td></tr><tr><td>EntryList</td><td><code>_EntryList</code>、<code>_cxq</code></td><td>门口排队、等着进诊室的人</td><td>BLOCKED</td></tr><tr><td>WaitSet</td><td><code>_WaitSet</code></td><td>看到一半发现化验结果没出来，主动出门去休息室等叫号的人</td><td>WAITING 或 TIMED_WAITING</td></tr></tbody></table></div>
 <p>线程在三个区域间怎么流转，可以在下面的演示里一步步看。最关键的是最后一步：<strong>叫号（notify）只是把人从休息室叫回门口排队，不是直接请进诊室</strong>。</p>
 <div class="lab-mount" data-lab="monitordemo"></div>
-<p><strong>跑一下看看</strong>：下面的程序让三个线程分别待在三个区域里，再打印它们的状态。</p>
-<pre class="codeblock" data-lang="java"><code>public class MonitorStateDemo {
-    static final Object lock = new Object();
-
-    public static void main(String[] args) throws Exception {
-        Thread waiter = new Thread(() -&gt; {
-            synchronized (lock) {
-                try { lock.wait(); } catch (InterruptedException ignored) { }  // 进 WaitSet，并释放锁
-                System.out.println("waiter 被唤醒并重新拿到了锁");
-            }
-        }, "waiter");
-
-        Thread owner = new Thread(() -&gt; {
-            synchronized (lock) {
-                sleep(3000);        // 拿着锁睡觉：sleep 不释放锁
-                lock.notify();      // 把 waiter 从 WaitSet 挪到 EntryList
-                sleep(3000);        // 仍然拿着锁
-            }
-        }, "owner");
-
-        Thread blocked = new Thread(() -&gt; {
-            synchronized (lock) { }  // 抢不到锁，进 EntryList
-        }, "blocked");
-
-        waiter.start();  Thread.sleep(100);
-        owner.start();   Thread.sleep(100);
-        blocked.start(); Thread.sleep(300);
-        System.out.println("阶段一  owner=" + owner.getState()
-                + "  blocked=" + blocked.getState() + "  waiter=" + waiter.getState());
-
-        Thread.sleep(3000);  // 此时 owner 已经 notify，但还没释放锁
-        System.out.println("阶段二  owner=" + owner.getState()
-                + "  blocked=" + blocked.getState() + "  waiter=" + waiter.getState());
-
-        owner.join(); blocked.join(); waiter.join();
-    }
-
-    static void sleep(long ms) {
-        try { Thread.sleep(ms); } catch (InterruptedException ignored) { }
-    }
-}</code></pre>
+<p>线程在 monitor 里的流转：</p>
+<ol><li>抢锁：用 CAS 把 <code>_owner</code> 设为自己。如果 <code>_owner</code> 已经是自己，就把重入计数 <code>_recursions</code> 加一。这就是 synchronized <strong>可重入</strong>的实现：同一个线程可以再次拿到自己已经持有的锁，同步方法 A 调用同步方法 B 不会把自己堵住。</li><li>抢不到：先自旋几轮，还抢不到就进入 EntryList，然后挂起（BLOCKED）。</li><li>持锁线程调用 <code>wait()</code>：释放锁，进入 WaitSet。</li><li>其他线程调用 <code>notify()</code>：把 WaitSet 里的一个线程挪到 EntryList，它要<strong>重新抢锁</strong>。</li><li>释放锁：重入计数减到 0 后清空 <code>_owner</code>，并唤醒一个等锁的线程。被唤醒的线程要和刚好到来的新线程一起抢，所以 <strong>synchronized 是非公平锁</strong>。</li></ol>
+<p><strong>跑一下看看</strong>：<code>examples/MonitorStateDemo.java</code> 让三个线程分别待在三个区域里，再打印它们的状态。waiter 先拿到锁并调用 <code>wait()</code>；owner 拿到锁后 sleep 3 秒，然后 notify，再 sleep 3 秒；blocked 在 owner 持锁期间来抢锁。</p>
 <p>JDK 17 实测输出：</p>
 <pre class="codeblock" data-lang="text"><code>阶段一  owner=TIMED_WAITING  blocked=BLOCKED  waiter=WAITING
 阶段二  owner=TIMED_WAITING  blocked=BLOCKED  waiter=BLOCKED
@@ -728,14 +653,11 @@ waiter 被唤醒并重新拿到了锁</code></pre>
     - waiting to lock &lt;0x0000000697c1c210&gt; (a java.lang.Object)</code></pre>
 <div class="tbl"><table><thead><tr><th>jstack 里的字样</th><th>含义</th><th>所在区域</th></tr></thead><tbody><tr><td><code>- locked &lt;地址&gt;</code></td><td>持有这把锁</td><td>Owner</td></tr><tr><td><code>- waiting to lock &lt;地址&gt;</code></td><td>抢锁失败，正在排队</td><td>EntryList</td></tr><tr><td><code>- waiting on &lt;地址&gt;</code></td><td>调用了 wait，在等通知</td><td>WaitSet</td></tr><tr><td><code>- waiting to re-lock in wait() &lt;地址&gt;</code></td><td>已被 notify，正在重新抢锁（阶段二的 waiter）</td><td>EntryList</td></tr></tbody></table></div>
 <p>三个线程后面的地址都是 <code>0x0000000697c1c210</code>，说明它们围着同一个对象的 monitor。线上排查锁问题时，按这个地址把线程归类，就能看出谁拿着锁、谁在排队。注意：jstack 在 waiter 自己的栈帧下也会显示一行 <code>- locked</code>，那只表示它是在这个同步块里调用的 wait，锁其实已经释放了。</p>
-<p>线程在 monitor 里的流转：</p>
-<ol><li>抢锁：CAS 把 <code>_owner</code> 设为自己。如果 <code>_owner</code> 已经是自己，<code>_recursions++</code>（<strong>这就是 synchronized 可重入的实现</strong>）。</li><li>抢不到：先自适应自旋几轮，还抢不到就进入 <code>_cxq</code>，然后 park 挂起（BLOCKED）。</li><li>持锁线程调 <code>wait()</code>：释放锁，进入 <code>_WaitSet</code>。</li><li>其他线程调 <code>notify()</code>：把 WaitSet 里的一个线程移到 EntryList/cxq，它要<strong>重新抢锁</strong>。</li><li>释放锁：<code>_recursions</code> 减到 0 后清空 <code>_owner</code>，并唤醒一个等待线程。唤醒的线程要和刚好到来的新线程竞争，所以 <strong>synchronized 是非公平锁</strong>。</li></ol>
+<p><strong>重量级锁为什么“重”</strong>：等锁的线程要被挂起、再被唤醒，这两步都要进内核（1.3 节），一次可能要微秒级，而临界区代码可能只要几纳秒。所以 JVM 想尽办法让大多数加锁根本用不到 monitor，这就是 3.5 节的锁升级。</p>
+<details class="deep"><summary><span class="deep-tag">深入一层</span><span class="deep-t">ObjectMonitor 的实现细节</span><span class="deep-hint">第一遍可以跳过</span></summary><div class="deep-b">
 <p><strong>为什么等锁的队列有两个（_cxq 和 _EntryList）？</strong> 新来的线程要并发地入队，用 CAS 压进 <code>_cxq</code> 最便宜（它是单向链表，后进先出）。释放锁时只有 Owner 一个线程在操作，它把 <code>_cxq</code> 里的线程挪到 <code>_EntryList</code>，再从 <code>_EntryList</code> 挑一个唤醒。这样“很多线程同时入队”只需要 CAS，“出队”完全不用额外同步。学习时把两者统称为“等锁队列”就够了。</p>
-<p><strong>monitor 什么时候创建、什么时候回收？</strong> 锁膨胀时创建：轻量级锁遇到竞争，或者在锁里调用了 wait（3.4 节 MarkWordDemo 的第 5、7 行会验证这一点）。不再使用的 monitor 会被 JVM 回收，对象回到无锁状态。所以常说的“锁不降级”，准确意思是：正在被使用的重量级锁，不会退回轻量级锁。</p>
-<p>重量级锁为什么“重”：park/unpark 最终依赖 OS 的 mutex/futex，线程挂起和唤醒要在用户态和内核态之间切换，一次可能要微秒级，而临界区代码可能只要几纳秒。</p>
-<p>把“进内核”展开，一次挂起的调用链大致是：<code>ObjectMonitor::enter</code> 自旋失败 → 调用当前线程的 park → 底层是 pthread 的互斥锁和条件变量 → 在 Linux 上最终是 <code>futex</code> 系统调用 → 内核把线程从运行队列里摘下，不再给它分配 CPU。唤醒时反过来再走一遍。这一来一回就是 1.3 节说的用户态、内核态切换。单元五的 <code>LockSupport.park()</code> 底层也是 pthread 条件变量，代价在同一个量级。</p>
-<div class="lab-mount" data-lab="lifecycle"></div>
-<p><strong>可重入</strong>：同一线程拿到锁后，可以再次获取同一把锁而不会自己把自己堵住。意义：同步方法 A 调用同步方法 B、子类同步方法调 <code>super</code> 的同步方法，都不会死锁。实现：记录“持有者 + 计数”，加一次 +1，释放一次 -1，减到 0 才真正释放。</p>
+<p><strong>monitor 什么时候回收？</strong> 不再使用的 monitor 会被 JVM 在后台回收，对象回到无锁状态。所以常说的“锁不降级”，准确意思是：正在被使用的重量级锁，不会退回轻量级锁。</p>
+</div></details>
 </section>
 <section id="u3-3"><h2>3.3 wait 与 notify：在 Monitor 里等通知</h2>
 <p>持有锁的线程发现条件还不满足（比如队列是空的），可以调用 <code>wait()</code> 让出锁、进 WaitSet 等着；别的线程把条件改好后，用 <code>notify()</code> 叫醒它。</p>
@@ -743,111 +665,23 @@ waiter 被唤醒并重新拿到了锁</code></pre>
 <div class="tbl"><table><thead><tr><th>对比项</th><th><code>Thread.sleep()</code></th><th><code>Object.wait()</code></th></tr></thead><tbody><tr><td>所属类</td><td>Thread 的静态方法</td><td>Object 的实例方法</td></tr><tr><td>是否释放锁</td><td><strong>不释放</strong></td><td><strong>释放</strong> monitor 锁</td></tr><tr><td>使用前提</td><td>任意位置</td><td>必须在 <code>synchronized</code> 内，否则抛 <code>IllegalMonitorStateException</code></td></tr><tr><td>唤醒方式</td><td>时间到自动醒</td><td>notify/notifyAll、超时、中断</td></tr><tr><td>用途</td><td>暂停执行</td><td>线程间协作（等条件）</td></tr></tbody></table></div>
 <ul><li><strong>sleep 会释放 CPU 吗？</strong> 会，线程进入 TIMED_WAITING，不参与调度；但它握着的锁不放。</li><li><strong>为什么 wait 定义在 Object 而不是 Thread？</strong> 因为锁属于对象。每个对象都可以关联一个 monitor（3.2 节），wait 要释放的是“这个对象的锁”，并进入“这个对象的等待集合（WaitSet）”。sleep 和锁无关，只影响当前线程，所以在 Thread 上。</li><li><strong>为什么 wait 必须在 synchronized 里？</strong> 机制上，只有 monitor 的 Owner 才能操作 WaitSet（3.2 节），没拿锁就调用会抛异常。设计上，这样规定是为了避免“丢失唤醒”：线程 A 判断条件不满足、还没来得及 wait，线程 B 就改了条件并 notify，A 再 wait 就永远等不到了。“判断条件 + wait”必须是原子的。</li></ul>
 <p><strong>notify 与 notifyAll</strong></p>
-<ul><li><code>notify()</code> 从该对象的 WaitSet 中唤醒一个线程，<code>notifyAll()</code> 唤醒全部，被唤醒的线程再竞争锁。</li><li><strong>notify 选哪个？</strong> JVM 规范说是“任意一个”。HotSpot 实现中通常按进入 WaitSet 的顺序唤醒，但代码不能依赖这一点。</li><li>多个线程等不同条件时（如 ABC 轮流打印），用 notify 可能叫醒“错的人”导致全员等待，所以要用 notifyAll，或者换成多个 Condition 精准唤醒。</li><li>被唤醒后条件不一定成立（其他线程可能先抢到锁改了数据，或者发生虚假唤醒），所以<strong>wait 必须放在 while 循环里</strong>：</li></ul>
+<ul><li><code>notify()</code> 从该对象的 WaitSet 中唤醒一个线程，<code>notifyAll()</code> 唤醒全部，被唤醒的线程再竞争锁。</li><li><strong>notify 选哪个？</strong> JVM 规范说是“任意一个”，代码不能依赖唤醒顺序。</li><li>多个线程等不同条件时（如 ABC 轮流打印），用 notify 可能叫醒“错的人”导致全员等待，所以要用 notifyAll，或者换成多个 Condition 精准唤醒。</li><li>被唤醒后条件不一定成立（其他线程可能先抢到锁改了数据，或者发生虚假唤醒），所以<strong>wait 必须放在 while 循环里</strong>：</li></ul>
 <pre class="codeblock" data-lang="java"><code>synchronized (lock) {
     while (!condition) {   // 不能用 if
         lock.wait();
     }
     // do something
 }</code></pre>
-<p>“必须用 while”背后是 monitor 的一个设计选择。Java 采用的是 <strong>Mesa 风格</strong>：调用 notify 的线程继续执行，被唤醒的线程回到 EntryList，稍后再和别人一起抢锁（3.2 节的图）。它抢到锁之前，别的线程完全可能先进去把条件改掉。另一种 <strong>Hoare 风格</strong>会在 notify 时立刻把锁交给被唤醒者，条件一定成立，可以用 if；但它要多做一次线程切换，实现也更复杂，Java、pthread 等主流实现都没有采用。</p>
+<p>“必须用 while”的原因：被叫醒只是回到 EntryList 重新排队（3.2 节的图）。真正拿到锁时，条件可能已经被先进去的线程改掉了，也可能根本没人改过（虚假唤醒），所以醒来后要重新检查条件。</p>
 <div class="lab-mount" data-lab="notifydemo"></div>
 </section>
 <section id="u3-4"><h2>3.4 对象头：锁的状态记在 Mark Word 里</h2>
-<p>3.2 节说过，monitor 是需要时才分配的；平时锁的状态直接记在对象自己身上。这一节看一个对象在内存里长什么样，锁的状态记在哪几个比特里。</p>
-<p><strong>① 一个 Java 对象在堆里分三块</strong></p>
-<div class="tbl"><table><thead><tr><th>组成部分</th><th>大小（64 位 JVM，默认开启压缩指针）</th><th>存什么、有什么用</th></tr></thead><tbody><tr><td>对象头 · Mark Word</td><td>8 字节</td><td>对象的运行时状态：hashCode、GC 分代年龄、<strong>锁状态</strong>。synchronized 的锁就记在这里</td></tr><tr><td>对象头 · 类型指针</td><td>4 字节</td><td>指向方法区（元空间）里这个类的元数据。<code>getClass()</code>、<code>instanceof</code>、调用重写的方法，都靠它找到对象属于哪个类</td></tr><tr><td>对象头 · 数组长度</td><td>4 字节，只有数组才有</td><td><code>arr.length</code> 读的就是这里</td></tr><tr><td>实例数据</td><td>各字段大小之和</td><td>字段的值，包括从父类继承的字段</td></tr><tr><td>对齐填充</td><td>0~7 字节</td><td>HotSpot 要求对象大小是 8 的倍数，不够就补齐</td></tr></tbody></table></div>
-<p>按这张表算：<code>new Object()</code> 的对象头是 8 + 4 = 12 字节，没有字段，补 4 字节凑成 <strong>16 字节</strong>；<code>new int[3]</code> 是 12 + 4（长度）+ 3 × 4 = 28 字节，补齐到 <strong>32 字节</strong>。在 JDK 17 上用 <code>Instrumentation.getObjectSize()</code> 实测，结果正是 16 和 32。</p>
-<div class="lab-mount" data-lab="objlayout"></div>
-<p><strong>② Mark Word：对象的“状态栏”</strong></p>
-<p>Mark Word 只有 64 位，却要存好几样东西，所以它是<strong>复用</strong>的：JVM 先看最低 2 位的锁标志位，再决定怎么解读其余 62 位。两个顺手能记住的细节：</p>
-<ul><li>GC 分代年龄只有 4 位，最大是 15。这就是 <code>-XX:MaxTenuringThreshold</code> 最多只能设成 15 的原因。</li><li>hashCode 不是对象一创建就有的。第一次调用 <code>hashCode()</code> 时才算出来，写进这 31 位。</li></ul>
-<p>加锁以后，这 64 位会被改写成别的内容（比如一个指针），锁标志位也跟着变：01 无锁，00 轻量级锁，10 重量级锁。所以<strong>在对象这一侧，“锁”就是 Mark Word 里的几个比特</strong>，任何对象都能当锁用。每种状态具体存什么，见下表，后面还会用代码把真实的比特打印出来。</p>
-<p>下表是 64 位 HotSpot 里，每种锁状态下这 64 位分别存什么：</p>
+<p>3.2 节说过，monitor 是需要时才分配的；平时锁的状态直接记在对象自己身上，具体是对象头里一块叫 <strong>Mark Word</strong> 的 8 字节区域。它只有 64 位，却要存 hashCode、GC 用的信息和锁状态，所以是<strong>复用</strong>的：JVM 先看最低 2 位的锁标志位，再决定怎么解读其余的位。还有一个细节：hashCode 不是对象一创建就有的，第一次调用 <code>hashCode()</code> 时才算出来写进去。</p>
+<p>下表是每种锁状态下这 64 位分别存什么：</p>
 <div class="tbl"><table><thead><tr><th>锁状态</th><th>其余位存什么（从高位到低位）</th><th>偏向位</th><th>锁标志位</th></tr></thead><tbody><tr><td>无锁</td><td>未使用 25 位 + hashCode 31 位 + 未使用 1 位 + GC 年龄 4 位</td><td>0</td><td>01</td></tr><tr><td>偏向锁</td><td>持有锁的线程指针 54 位（常说的“线程 ID”）+ epoch 2 位 + 未使用 1 位 + GC 年龄 4 位</td><td>1</td><td>01</td></tr><tr><td>轻量级锁</td><td>指向持锁线程栈上 Lock Record 的指针</td><td>—</td><td>00</td></tr><tr><td>重量级锁</td><td>指向 ObjectMonitor 的指针</td><td>—</td><td>10</td></tr><tr><td>GC 标记</td><td>给 GC 使用</td><td>—</td><td>11</td></tr></tbody></table></div>
 <div class="lab-mount" data-lab="markword"></div>
-<p><strong>亲手打印出来</strong>：<code>sun.misc.Unsafe</code> 可以按偏移量读对象里的任意字节，对象开头的 8 个字节就是 Mark Word。下面的程序在不同时刻读它，并按最低 3 位判断锁状态：</p>
-<pre class="codeblock" data-lang="java"><code>import sun.misc.Unsafe;
-import java.lang.reflect.Field;
-
-public class MarkWordDemo {
-    static class Point { int x; }
-
-    private static final Unsafe U = getUnsafe();
-
-    // 读对象开头的 8 个字节，就是 Mark Word（64 位 HotSpot）
-    static String mark(Object o) {
-        long m = U.getLong(o, 0L);
-        String bits = String.format("%64s", Long.toBinaryString(m)).replace(' ', '0');
-        String lock;
-        switch ((int) (m &amp; 0b11)) {
-            case 0b01: lock = (m &amp; 0b100) != 0 ? "偏向锁" : "无锁"; break;
-            case 0b00: lock = "轻量级锁"; break;
-            case 0b10: lock = "重量级锁"; break;
-            default:   lock = "GC 标记";
-        }
-        return String.format("0x%016x  末三位 %s → %s", m, bits.substring(61), lock);
-    }
-
-    public static void main(String[] args) throws Exception {
-        // ① 对象头有多大：看第一个字段从第几个字节开始
-        System.out.println("Point.x 的偏移量 = " + U.objectFieldOffset(Point.class.getDeclaredField("x")));
-        System.out.println("int[] 第一个元素的偏移量 = " + U.arrayBaseOffset(int[].class));
-
-        // ② Mark Word 随锁状态变化
-        Object o = new Object();
-        System.out.println("1. 刚 new 出来      " + mark(o));
-
-        int h = o.hashCode();
-        long hashInMark = (U.getLong(o, 0L) &gt;&gt;&gt; 8) &amp; 0x7FFFFFFFL;
-        System.out.println("2. 调用 hashCode 后  " + mark(o));
-        System.out.printf("   hashCode() = 0x%x，Mark Word 第 8~38 位 = 0x%x%n", h, hashInMark);
-
-        synchronized (o) {
-            System.out.println("3. 单线程加锁中      " + mark(o));
-        }
-        System.out.println("4. 释放锁后          " + mark(o));
-
-        Thread holder = new Thread(() -&gt; {
-            synchronized (o) { sleep(500); }
-        });
-        Thread contender = new Thread(() -&gt; {
-            synchronized (o) { }
-        });
-        holder.start();
-        Thread.sleep(100);
-        contender.start();
-        Thread.sleep(100);
-        System.out.println("5. 另一线程在抢锁    " + mark(o) + "（抢锁线程状态：" + contender.getState() + "）");
-        holder.join();
-        contender.join();
-
-        Object p = new Object();
-        synchronized (p) {
-            System.out.println("6. 新对象加锁        " + mark(p));
-            p.wait(10);
-            System.out.println("7. 同一线程 wait 后  " + mark(p));
-        }
-    }
-
-    static void sleep(long ms) {
-        try { Thread.sleep(ms); } catch (InterruptedException ignored) { }
-    }
-
-    private static Unsafe getUnsafe() {
-        try {
-            Field f = Unsafe.class.getDeclaredField("theUnsafe");
-            f.setAccessible(true);
-            return (Unsafe) f.get(null);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-}</code></pre>
-<p>JDK 17 实测输出：</p>
-<pre class="codeblock" data-lang="text"><code>Point.x 的偏移量 = 12
-int[] 第一个元素的偏移量 = 16
-1. 刚 new 出来      0x0000000000000001  末三位 001 → 无锁
+<p><strong>亲手打印出来</strong>：用 <code>sun.misc.Unsafe</code> 读出对象开头的 8 个字节，就是 Mark Word。<code>examples/MarkWordDemo.java</code> 在不同时刻读它，并按最低 3 位判断锁状态。JDK 17 实测输出（节选）：</p>
+<pre class="codeblock" data-lang="text"><code>1. 刚 new 出来      0x0000000000000001  末三位 001 → 无锁
 2. 调用 hashCode 后  0x0000005c647e0501  末三位 001 → 无锁
    hashCode() = 0x5c647e05，Mark Word 第 8~38 位 = 0x5c647e05
 3. 单线程加锁中      0x000000016bddaad0  末三位 000 → 轻量级锁
@@ -856,15 +690,9 @@ int[] 第一个元素的偏移量 = 16
 6. 新对象加锁        0x000000016bddaad0  末三位 000 → 轻量级锁
 7. 同一线程 wait 后  0x0000000109404962  末三位 010 → 重量级锁</code></pre>
 <p>逐行看：</p>
-<ul><li><strong>前两行</strong>：第一个字段从第 12 字节开始，数组元素从第 16 字节开始，印证了上面“对象头 12 字节，数组多 4 字节长度”。</li><li><strong>第 1、2 行</strong>：刚创建时 hash 位全是 0；调用 hashCode() 后，中间那段 <code>5c647e05</code> 正好等于 hashCode() 的返回值。hashCode 确实存在 Mark Word 里，而且是第一次调用时才写进去的。</li><li><strong>第 3、4 行</strong>：单线程加锁，末两位变成 00（轻量级锁），前面变成一个地址，指向当前线程栈上的 Lock Record。原来的 Mark Word 被搬到 Lock Record 里保管，释放锁时原样换回，所以第 4 行和第 2 行一模一样。</li><li><strong>第 5 行</strong>：另一个线程来抢，末两位变成 10，锁膨胀成重量级，地址指向 ObjectMonitor。抢锁线程是 BLOCKED，待在 EntryList。</li><li><strong>第 6、7 行</strong>：<strong>没有任何竞争</strong>，只是同一个线程在锁里调了一次 wait，锁也膨胀成了重量级。因为只有 ObjectMonitor 才有 WaitSet，轻量级锁没有地方放等待的线程。</li></ul>
-<p>运行说明：JDK 17 默认关闭偏向锁，所以第 1 行直接是无锁。编译时会有“Unsafe 是内部专用 API”的警告，可以忽略。</p>
+<ul><li><strong>第 1、2 行</strong>：刚创建时 hash 位全是 0；调用 hashCode() 后，中间那段 <code>5c647e05</code> 正好等于 hashCode() 的返回值。hashCode 确实存在 Mark Word 里，而且是第一次调用时才写进去的。</li><li><strong>第 3、4 行</strong>：单线程加锁，末两位变成 00（轻量级锁），前面变成一个地址，指向当前线程栈上的 Lock Record。原来的 Mark Word 被搬到 Lock Record 里保管，释放锁时原样换回，所以第 4 行和第 2 行一模一样。</li><li><strong>第 5 行</strong>：另一个线程来抢，末两位变成 10，锁膨胀成重量级，地址指向 ObjectMonitor。抢锁线程是 BLOCKED，待在 EntryList。</li><li><strong>第 6、7 行</strong>：<strong>没有任何竞争</strong>，只是同一个线程在锁里调了一次 wait，锁也膨胀成了重量级。因为只有 ObjectMonitor 才有 WaitSet，轻量级锁没有地方放等待的线程。</li></ul>
+<p>运行说明：JDK 17 默认关闭偏向锁，所以第 1 行直接是无锁。</p>
 <p><strong>对象调用过 <code>hashCode()</code> 后还能进入偏向锁吗？</strong> 不能。偏向锁要把线程 ID 写进 Mark Word，和 hashCode 抢同一块位置。已计算 hash 的对象直接走轻量级；偏向状态下调用 hashCode 会导致偏向撤销。轻量级和重量级没这个问题，因为原 Mark Word 被保存在 Lock Record 或 monitor 里了。</p>
-<p>这个结论也能跑出来。在 JDK 17 上用 <code>-XX:+UseBiasedLocking -XX:BiasedLockingStartupDelay=0</code> 重新打开偏向锁（会提示参数已废弃），对一个新对象依次加锁、释放、调用 hashCode，Mark Word 的变化如下（整理后的实测输出）：</p>
-<pre class="codeblock" data-lang="text"><code>刚 new 出来    0x0000000000000005   末三位 101：偏向锁，线程指针还是 0（匿名偏向）
-加锁中        0x000000014300e005   前面写入了当前线程的指针
-释放锁后      0x000000014300e005   不变：退出同步块不会撤销偏向
-调用 hashCode  0x00000058644d4601   末三位 001：偏向被撤销，hashCode 写了进来</code></pre>
-<p>最后一行就是证据：hashCode 和线程指针要用 Mark Word 里同一块位置，两者只能留一个。第二、三行则对应 3.5 节的“之后同一个线程再进入，只比较线程 ID”：偏向信息一直留在对象头里。</p>
 </section>
 <section id="u3-5"><h2>3.5 锁升级全过程</h2>
 <p>JDK 1.6 之前 synchronized 一上来就是重量级锁。1.6 引入了分级：<strong>无锁 → 偏向锁 → 轻量级锁 → 重量级锁</strong>，按竞争程度逐级升级，一般不降级（下面可以一步步走一遍）。理解的关键是问自己：<strong>每一级针对什么场景，省掉了什么开销？</strong></p>
@@ -877,19 +705,18 @@ int[] 第一个元素的偏移量 = 16
 <p><strong>③ 重量级锁：针对“真正的激烈竞争”</strong></p>
 <ul><li>Mark Word 指向 ObjectMonitor，抓不到锁的线程进队列并挂起（3.2 节）。</li><li>挂起虽然贵，但竞争激烈时比一直自旋空转 CPU 更划算。</li></ul>
 <p>一句话串起来：偏向锁连 CAS 都省了，轻量级锁用 CAS 代替了内核互斥量，重量级锁才真的让线程睡觉。</p>
+<div class="lab-mount" data-lab="lifecycle"></div>
 </section>
 <section id="u3-6"><h2>3.6 JVM 对 synchronized 的其他优化</h2>
-<ul><li><strong>自适应自旋</strong>：自旋次数不固定，由上次在同一把锁上的自旋结果决定。上次自旋成功就多转几圈，否则少转或不转。</li><li><strong>锁消除</strong>：JIT 通过逃逸分析发现锁对象不会被其他线程访问，就把锁去掉。例如方法内部的 <code>StringBuffer.append()</code>。</li><li><strong>锁粗化</strong>：循环里反复加解同一把锁，合并成一次大范围的加锁。</li></ul>
+<ul><li><strong>自适应自旋</strong>：自旋次数不固定，由上次在同一把锁上的自旋结果决定。上次自旋成功就多转几圈，否则少转或不转。</li><li><strong>锁消除</strong>：JIT 发现一个锁对象只会在一个线程里用（这种分析叫逃逸分析），就把锁直接去掉。例如方法里 new 出来、用完就丢的 <code>StringBuffer</code>，它的 <code>append()</code> 虽然带 synchronized，也不会真的加锁。</li><li><strong>锁粗化</strong>：循环里反复加解同一把锁，合并成一次大范围的加锁。</li></ul>
 </section>
 <section id="u3-interview" class="interview"><h2>面试这样说</h2>
 <p class="hint">先合上答案，自己用 30 秒说一遍，再展开对照。</p>
 <details class="qa"><summary>问：讲一下 synchronized 的底层原理。</summary><div class="ans">synchronized 是对象锁，底层靠 JVM 的 Monitor 实现。同步代码块编译后是 monitorenter 和 monitorexit 指令，同步方法是方法上的 ACC_SYNCHRONIZED 标志。Monitor 里有三个关键结构：Owner 记录持有锁的线程，EntryList 放抢锁失败、处于 BLOCKED 的线程，WaitSet 放调用了 wait 的线程。线程抢锁就是把 Owner 设成自己，如果 Owner 已经是自己就把重入计数加一，所以它是可重入的；释放时唤醒 EntryList 里的线程重新竞争，新来的线程也能抢，所以它是非公平的。</div></details>
-<details class="qa"><summary>问：sleep 和 wait 有什么区别？</summary><div class="ans">我从四个角度说。一是归属，sleep 是 Thread 的静态方法，wait 是 Object 的方法。二是锁，sleep 不释放锁，wait 会释放锁。三是使用条件，wait 必须在 synchronized 里调用，否则抛 IllegalMonitorStateException。四是唤醒，sleep 到时间自动醒，wait 要靠 notify/notifyAll、超时或中断。wait 放在 Object 上，是因为锁是对象级别的，等待队列挂在对象的 monitor 上。</div></details>
 <details class="qa"><summary>问：了解锁升级吗？</summary><div class="ans">JDK 1.6 之后 synchronized 有四种状态：无锁、偏向锁、轻量级锁、重量级锁，记录在对象头的 Mark Word 里，随竞争程度升级。偏向锁针对只有一个线程反复加锁，第一次用 CAS 写入线程 ID，之后只比较 ID；轻量级锁针对多个线程交替加锁，用 CAS 把 Mark Word 换成指向栈中 Lock Record 的指针；一旦 CAS 失败、出现真正的竞争，就膨胀成重量级锁，线程自旋后挂起，要进入内核态。补充一点，偏向锁因为撤销要 STW、收益小，JDK 15 起默认关闭了。</div></details>
-<details class="qa"><summary>问：说一下 Java 对象的内存布局，对象头里有什么？</summary><div class="ans">一个对象在堆里分三部分：对象头、实例数据和对齐填充。对象头里有 Mark Word 和类型指针，数组还多一个长度字段。Mark Word 在 64 位 JVM 上占 8 字节，存 hashCode、GC 分代年龄和锁状态，最低两位是锁标志位，加锁时这块内容会被改写成指向锁记录或 monitor 的指针。类型指针指向方法区里的类元数据，开启压缩指针时占 4 字节。实例数据是字段的值，对齐填充让对象大小凑成 8 的倍数，所以一个 new Object() 是 16 字节。和并发相关的是 Mark Word：重量级锁时它指向 ObjectMonitor，里面的 EntryList 放等锁的线程，WaitSet 放调用了 wait 的线程。</div></details>
 </section>
 <section id="u3-quiz" class="quiz"><h2>自测</h2>
-<p class="hint">先自己回答，再点开答案对照；勾上“我会了”的题会记在这台设备的浏览器里。<span class="qz-progress"></span></p><ol class="quizlist"><li class="qz" data-qid="u3-q1"><div class="qz-q">wait 为什么必须在 synchronized 里，且要放在 while 里？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>必须在 synchronized 里：WaitSet 属于对象的 monitor，只有 Owner 才能往里放人、叫人，否则抛 <code>IllegalMonitorStateException</code>；设计上也是为了让“判断条件 + wait”成为原子操作，避免丢失唤醒。要放在 while 里：Java 的 monitor 是 Mesa 风格，被 notify 只是回到 EntryList 重新抢锁，真正拿到锁时条件可能已经被别的线程改掉，也可能是虚假唤醒，所以要重新检查（3.3 节的演示里 C 就是这样又睡回去的）。</div></li><li class="qz" data-qid="u3-q2"><div class="qz-q">new Object() 占多少字节？分别是哪几部分？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden><b>16 字节</b>（64 位 JVM、开启压缩指针）：Mark Word 8 字节 + 类型指针 4 字节 = 12 字节对象头，没有实例数据，再补 4 字节对齐填充，凑成 8 的倍数。</div></li><li class="qz" data-qid="u3-q3"><div class="qz-q">Monitor 的三个区域各对应哪种线程状态？被 notify 的线程立刻就能执行吗？在 jstack 里会看到什么？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>Owner：持有锁的线程，通常是 RUNNABLE（在锁里 sleep 时是 TIMED_WAITING）；EntryList：等锁的线程，BLOCKED；WaitSet：调用了 wait 的线程，WAITING 或 TIMED_WAITING。被 notify 的线程<b>不能立刻执行</b>：它只是从 WaitSet 挪到 EntryList，变成 BLOCKED，要等 Owner 释放锁并抢到锁之后才继续。jstack 里显示 <code>waiting to re-lock in wait()</code>。</div></li><li class="qz" data-qid="u3-q4"><div class="qz-q">synchronized 抛异常为什么能自动释放锁？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>同步代码块编译后有一张<b>异常表</b>：块内抛出任何异常都会跳到一段处理代码，先执行 <code>monitorexit</code> 释放锁，再 <code>athrow</code> 把异常重新抛出去。同步方法则由 JVM 在方法异常退出时自动释放锁。</div></li><li class="qz" data-qid="u3-q5"><div class="qz-q">无锁、偏向、轻量、重量四种状态下 Mark Word 分别存什么？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>无锁：hashCode 31 位 + GC 年龄 4 位，偏向位 0，锁标志 01。偏向锁：持有线程的指针 54 位 + epoch + GC 年龄，偏向位 1，锁标志 01。轻量级锁：指向持锁线程栈上 Lock Record 的指针，锁标志 00。重量级锁：指向 ObjectMonitor 的指针，锁标志 10。</div></li><li class="qz" data-qid="u3-q6"><div class="qz-q">偏向锁为什么被废弃？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>撤销偏向要等全局安全点（STW），代价高；它只在“始终一个线程反复加锁”的场景收益明显，比如老式的 Vector、Hashtable，而现代应用多是线程池并发，收益很小；实现复杂、维护成本高。JDK 15 起默认关闭并废弃。</div></li><li class="qz" data-qid="u3-q7"><div class="qz-q">调用过 hashCode 的对象，加锁会怎样？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>不能再进入偏向锁：hashCode 和线程指针要用 Mark Word 里同一块位置，只能留一个。这样的对象加锁直接走轻量级锁；如果对象正处于偏向状态时调用 hashCode，偏向会被撤销。轻量级锁和重量级锁没有这个问题，原 Mark Word 保存在 Lock Record 或 monitor 里。</div></li><li class="qz" data-qid="u3-q8"><div class="qz-q">为什么 synchronized 是非公平的？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>释放锁时被唤醒的线程，要和刚好到达、正在自旋的新线程一起竞争，新线程往往先抢到；而且新来的等锁线程先压进 <code>_cxq</code>（后进先出），本身就不是严格的先来先得。</div></li><li class="qz" data-qid="u3-q9"><div class="qz-q">用代码怎么证明 hashCode 存在 Mark Word 里？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>用 <code>Unsafe.getLong(obj, 0L)</code> 读出对象开头的 8 字节（就是 Mark Word），右移 8 位取 31 位，和 <code>obj.hashCode()</code> 的返回值比较。3.4 节在 JDK 17 上实测，两者都是 <code>0x5c647e05</code>。</div></li><li class="qz" data-qid="u3-q10"><div class="qz-q">只有一个线程、在锁里调用一次 wait()，锁会变成什么状态？为什么？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden><b>重量级锁</b>（锁标志 10）。WaitSet 只存在于 ObjectMonitor 里，轻量级锁没有地方放等待的线程，所以调用 wait 会强制锁膨胀，哪怕根本没有竞争（3.4 节 MarkWordDemo 第 6、7 行）。</div></li></ol>
+<p class="hint">先自己回答，再点开答案对照；勾上“我会了”的题会记在这台设备的浏览器里。<span class="qz-progress"></span></p><ol class="quizlist"><li class="qz" data-qid="u3-q1"><div class="qz-q">wait 为什么必须在 synchronized 里，且要放在 while 里？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>必须在 synchronized 里：WaitSet 属于对象的 monitor，只有 Owner 才能往里放人、叫人，否则抛 <code>IllegalMonitorStateException</code>；设计上也是为了让“判断条件 + wait”成为原子操作，避免丢失唤醒。要放在 while 里：Java 的 monitor 是 Mesa 风格，被 notify 只是回到 EntryList 重新抢锁，真正拿到锁时条件可能已经被别的线程改掉，也可能是虚假唤醒，所以要重新检查（3.3 节的演示里 C 就是这样又睡回去的）。</div></li><li class="qz" data-qid="u3-q2"><div class="qz-q">Monitor 的三个区域各对应哪种线程状态？被 notify 的线程立刻就能执行吗？在 jstack 里会看到什么？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>Owner：持有锁的线程，通常是 RUNNABLE（在锁里 sleep 时是 TIMED_WAITING）；EntryList：等锁的线程，BLOCKED；WaitSet：调用了 wait 的线程，WAITING 或 TIMED_WAITING。被 notify 的线程<b>不能立刻执行</b>：它只是从 WaitSet 挪到 EntryList，变成 BLOCKED，要等 Owner 释放锁并抢到锁之后才继续。jstack 里显示 <code>waiting to re-lock in wait()</code>。</div></li><li class="qz" data-qid="u3-q3"><div class="qz-q">synchronized 抛异常为什么能自动释放锁？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>同步代码块编译后有一张<b>异常表</b>：块内抛出任何异常都会跳到一段处理代码，先执行 <code>monitorexit</code> 释放锁，再 <code>athrow</code> 把异常重新抛出去。同步方法则由 JVM 在方法异常退出时自动释放锁。</div></li><li class="qz" data-qid="u3-q4"><div class="qz-q">无锁、偏向、轻量、重量四种状态下 Mark Word 分别存什么？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>无锁：hashCode 31 位 + GC 年龄 4 位，偏向位 0，锁标志 01。偏向锁：持有线程的指针 54 位 + epoch + GC 年龄，偏向位 1，锁标志 01。轻量级锁：指向持锁线程栈上 Lock Record 的指针，锁标志 00。重量级锁：指向 ObjectMonitor 的指针，锁标志 10。</div></li><li class="qz" data-qid="u3-q5"><div class="qz-q">偏向锁为什么被废弃？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>撤销偏向要等全局安全点（STW），代价高；它只在“始终一个线程反复加锁”的场景收益明显，比如老式的 Vector、Hashtable，而现代应用多是线程池并发，收益很小；实现复杂、维护成本高。JDK 15 起默认关闭并废弃。</div></li><li class="qz" data-qid="u3-q6"><div class="qz-q">调用过 hashCode 的对象，加锁会怎样？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>不能再进入偏向锁：hashCode 和线程指针要用 Mark Word 里同一块位置，只能留一个。这样的对象加锁直接走轻量级锁；如果对象正处于偏向状态时调用 hashCode，偏向会被撤销。轻量级锁和重量级锁没有这个问题，原 Mark Word 保存在 Lock Record 或 monitor 里。</div></li><li class="qz" data-qid="u3-q7"><div class="qz-q">为什么 synchronized 是非公平的？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>释放锁时被唤醒的线程，要和刚好到达、正在自旋的新线程一起竞争，新线程往往先抢到；而且新来的等锁线程先压进 <code>_cxq</code>（后进先出），本身就不是严格的先来先得。</div></li><li class="qz" data-qid="u3-q8"><div class="qz-q">用代码怎么证明 hashCode 存在 Mark Word 里？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden>用 <code>Unsafe.getLong(obj, 0L)</code> 读出对象开头的 8 字节（就是 Mark Word），右移 8 位取 31 位，和 <code>obj.hashCode()</code> 的返回值比较。3.4 节在 JDK 17 上实测，两者都是 <code>0x5c647e05</code>。</div></li><li class="qz" data-qid="u3-q9"><div class="qz-q">只有一个线程、在锁里调用一次 wait()，锁会变成什么状态？为什么？</div><div class="qz-act"><button type="button" class="btn sm qz-show" aria-expanded="false">看答案</button><label class="qz-ok"><input type="checkbox" class="qz-cb"> 我会了</label></div><div class="qz-a" hidden><b>重量级锁</b>（锁标志 10）。WaitSet 只存在于 ObjectMonitor 里，轻量级锁没有地方放等待的线程，所以调用 wait 会强制锁膨胀，哪怕根本没有竞争（3.4 节 MarkWordDemo 第 6、7 行）。</div></li></ol>
 </section></div><!--PAGER-u3--></article>
   </main>
 </div>
@@ -1039,44 +866,6 @@ function stepLab(root, cfg) {
     return false;
   };
   STOPPERS.push(() => { if (S.timer) { stop(); render(); } });
-  render();
-}
-
-/* ===================== 1.5 对象布局 ===================== */
-const LAYOUTS = [
-  {k: 'obj', label: 'new Object()', code: ['Object o = new Object();'], size: 16, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'pad', '对齐填充']],
-    note: '没有任何字段：对象头 8 + 4 = 12 字节，再补 4 字节凑成 8 的倍数。'},
-  {k: 'point', label: 'Point', code: ['class Point {', '    int x;', '}'], size: 16, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'field', 'int x']],
-    note: 'int x 正好填进对象头后面的 4 字节，不需要填充。x 的偏移量 12 是用 Unsafe.objectFieldOffset 实测的（3.4 节）。'},
-  {k: 'arr', label: 'new int[3]', code: ['int[] a = new int[3];'], size: 32, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'len', '长度 = 3'], [16, 4, 'field', 'a[0]'], [20, 4, 'field', 'a[1]'], [24, 4, 'field', 'a[2]'], [28, 4, 'pad', '对齐填充']],
-    note: '数组的对象头多 4 字节存长度，所以元素从第 16 字节开始（实测 arrayBaseOffset = 16）。12 + 4 + 3 × 4 = 28，补齐到 32。'},
-  {k: 'mixed', label: 'Mixed', code: ['class Mixed {', '    boolean flag;', '    int x;', '    long y;', '    Object ref;', '}'], size: 32, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'field', 'int x'], [16, 8, 'field', 'long y'], [24, 1, 'field', 'flag'], [25, 3, 'pad', '空隙'], [28, 4, 'ref', 'Object ref']],
-    note: '字段在内存里的顺序和源码不一样。JVM 先用 int x 填满对象头后面的 4 字节；long y 要按 8 字节对齐，放在 16；boolean 放在 24；引用开启压缩指针后占 4 字节，放在 28，中间空出 3 字节。这些偏移量都是在 JDK 17 上用 Unsafe.objectFieldOffset 实测的。'}
-];
-const KC = {mark: 'k-mark', klass: 'k-klass', len: 'k-len', field: 'k-field', ref: 'k-ref', pad: 'k-pad'};
-function objLayout(root) {
-  root.classList.add('lab');
-  let cur = 0;
-  root.innerHTML = labTop({kind: '内存布局计算器', title: '一个对象到底占几个字节？', intro: '选一个对象，看它在堆里每个字节放的是什么。数字都是 64 位 JDK 17、默认开启压缩指针时实测的。'}) +
-    '<div class="ctrl"><div class="seg" role="group" aria-label="对象类型">' + LAYOUTS.map((L, i) => '<button type="button" data-i="' + i + '">' + esc(L.label) + '</button>').join('') + '</div></div>' +
-    '<div class="bench"><div class="code-col"></div><div class="stage"></div></div>';
-  const render = () => {
-    const L = LAYOUTS[cur];
-    $('.code-col', root).innerHTML = codePanel({id: 'c', title: '源码', lines: L.code}, []);
-    let rows = '';
-    for (let off = 0; off < L.size; off += 8) {
-      const cells = L.parts.filter(p => p[0] >= off && p[0] < off + 8).map(p => '<div class="bpart' + (p[2] === 'pad' ? ' pad' : '') + '" style="grid-column:span ' + p[1] + ';--kc:var(--' + KC[p[2]] + ')" title="' + esc(p[3]) + '，第 ' + p[0] + '~' + (p[0] + p[1] - 1) + ' 字节"><b>' + esc(p[3]) + '</b><span>' + p[1] + ' 字节</span></div>').join('');
-      rows += '<div class="brow"><span class="boff">+' + off + '</span><div class="bcells">' + cells + '</div></div>';
-    }
-    $('.stage', root).innerHTML = '<div class="box"><div class="box-h">每行 8 字节，左边是行首的偏移量</div><div class="bytemap">' + rows + '</div><div class="total"><span class="rk">总大小</span><b>' + L.size + ' 字节</b><span class="note">Instrumentation.getObjectSize 实测也是 ' + L.size + '</span></div></div><p class="narr-p" style="margin-top:10px">' + esc(L.note) + '</p>';
-    $$('.seg button', root).forEach((b, i) => b.setAttribute('aria-pressed', i === cur ? 'true' : 'false'));
-  };
-  $$('.seg button', root).forEach((b, i) => { b.onclick = () => { cur = i; render(); }; });
-  root._key = e => {
-    if (e.key === 'ArrowRight') { cur = Math.min(LAYOUTS.length - 1, cur + 1); render(); return true; }
-    if (e.key === 'ArrowLeft') { cur = Math.max(0, cur - 1); render(); return true; }
-    return false;
-  };
   render();
 }
 
@@ -1645,8 +1434,7 @@ function upSteps() {
 
 /* ===================== 注册与挂载 ===================== */
 const LABS = {
-  objlayout: objLayout,
-  monitordemo: el => stepLab(el, {title: '跟着 MonitorStateDemo 走一遍', intro: '和下面的程序是同一个场景：三个线程分别待在 Owner、EntryList、WaitSet。每一步都标出了此刻的线程状态和 jstack 里会看到的那一行。', code: () => MD_CODE, steps: mdSteps, stage: mdStage}),
+  monitordemo: el => stepLab(el, {title: '跟着 MonitorStateDemo 走一遍', intro: '和下面的 MonitorStateDemo 是同一个场景：三个线程分别待在 Owner、EntryList、WaitSet。每一步都标出了此刻的线程状态和 jstack 里会看到的那一行。', code: () => MD_CODE, steps: mdSteps, stage: mdStage}),
   statemachine: stateMachine,
   notifydemo: el => stepLab(el, {title: '三个线程轮流打印：notify 为什么会卡死', intro: '同一个场景，切换 notify 和 notifyAll 对比。这也是单元十一“循环打印 ABC”最容易写错的地方。', variants: [{key: 'one', label: 'notify()'}, {key: 'all', label: 'notifyAll()'}], variantLabel: '唤醒方式', code: NT_CODE, steps: ntSteps, stage: ntStage}),
   interruptdemo: el => stepLab(el, {title: '中断标志是怎么被“吞掉”的', intro: '盯住中断标志位这一个比特。切换 catch 里的写法，看线程能不能停下来。', variants: [{key: 'keep', label: 'catch 里恢复标志'}, {key: 'drop', label: 'catch 里什么都不做'}], variantLabel: 'catch 写法', code: IT_CODE, steps: itSteps, stage: itStage}),

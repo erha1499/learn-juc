@@ -534,44 +534,6 @@ function stepLab(root, cfg) {
   render();
 }
 
-/* ===================== 1.5 对象布局 ===================== */
-const LAYOUTS = [
-  {k: 'obj', label: 'new Object()', code: ['Object o = new Object();'], size: 16, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'pad', '对齐填充']],
-    note: '没有任何字段：对象头 8 + 4 = 12 字节，再补 4 字节凑成 8 的倍数。'},
-  {k: 'point', label: 'Point', code: ['class Point {', '    int x;', '}'], size: 16, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'field', 'int x']],
-    note: 'int x 正好填进对象头后面的 4 字节，不需要填充。x 的偏移量 12 是用 Unsafe.objectFieldOffset 实测的（3.4 节）。'},
-  {k: 'arr', label: 'new int[3]', code: ['int[] a = new int[3];'], size: 32, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'len', '长度 = 3'], [16, 4, 'field', 'a[0]'], [20, 4, 'field', 'a[1]'], [24, 4, 'field', 'a[2]'], [28, 4, 'pad', '对齐填充']],
-    note: '数组的对象头多 4 字节存长度，所以元素从第 16 字节开始（实测 arrayBaseOffset = 16）。12 + 4 + 3 × 4 = 28，补齐到 32。'},
-  {k: 'mixed', label: 'Mixed', code: ['class Mixed {', '    boolean flag;', '    int x;', '    long y;', '    Object ref;', '}'], size: 32, parts: [[0, 8, 'mark', 'Mark Word'], [8, 4, 'klass', '类型指针'], [12, 4, 'field', 'int x'], [16, 8, 'field', 'long y'], [24, 1, 'field', 'flag'], [25, 3, 'pad', '空隙'], [28, 4, 'ref', 'Object ref']],
-    note: '字段在内存里的顺序和源码不一样。JVM 先用 int x 填满对象头后面的 4 字节；long y 要按 8 字节对齐，放在 16；boolean 放在 24；引用开启压缩指针后占 4 字节，放在 28，中间空出 3 字节。这些偏移量都是在 JDK 17 上用 Unsafe.objectFieldOffset 实测的。'}
-];
-const KC = {mark: 'k-mark', klass: 'k-klass', len: 'k-len', field: 'k-field', ref: 'k-ref', pad: 'k-pad'};
-function objLayout(root) {
-  root.classList.add('lab');
-  let cur = 0;
-  root.innerHTML = labTop({kind: '内存布局计算器', title: '一个对象到底占几个字节？', intro: '选一个对象，看它在堆里每个字节放的是什么。数字都是 64 位 JDK 17、默认开启压缩指针时实测的。'}) +
-    '<div class="ctrl"><div class="seg" role="group" aria-label="对象类型">' + LAYOUTS.map((L, i) => '<button type="button" data-i="' + i + '">' + esc(L.label) + '</button>').join('') + '</div></div>' +
-    '<div class="bench"><div class="code-col"></div><div class="stage"></div></div>';
-  const render = () => {
-    const L = LAYOUTS[cur];
-    $('.code-col', root).innerHTML = codePanel({id: 'c', title: '源码', lines: L.code}, []);
-    let rows = '';
-    for (let off = 0; off < L.size; off += 8) {
-      const cells = L.parts.filter(p => p[0] >= off && p[0] < off + 8).map(p => '<div class="bpart' + (p[2] === 'pad' ? ' pad' : '') + '" style="grid-column:span ' + p[1] + ';--kc:var(--' + KC[p[2]] + ')" title="' + esc(p[3]) + '，第 ' + p[0] + '~' + (p[0] + p[1] - 1) + ' 字节"><b>' + esc(p[3]) + '</b><span>' + p[1] + ' 字节</span></div>').join('');
-      rows += '<div class="brow"><span class="boff">+' + off + '</span><div class="bcells">' + cells + '</div></div>';
-    }
-    $('.stage', root).innerHTML = '<div class="box"><div class="box-h">每行 8 字节，左边是行首的偏移量</div><div class="bytemap">' + rows + '</div><div class="total"><span class="rk">总大小</span><b>' + L.size + ' 字节</b><span class="note">Instrumentation.getObjectSize 实测也是 ' + L.size + '</span></div></div><p class="narr-p" style="margin-top:10px">' + esc(L.note) + '</p>';
-    $$('.seg button', root).forEach((b, i) => b.setAttribute('aria-pressed', i === cur ? 'true' : 'false'));
-  };
-  $$('.seg button', root).forEach((b, i) => { b.onclick = () => { cur = i; render(); }; });
-  root._key = e => {
-    if (e.key === 'ArrowRight') { cur = Math.min(LAYOUTS.length - 1, cur + 1); render(); return true; }
-    if (e.key === 'ArrowLeft') { cur = Math.max(0, cur - 1); render(); return true; }
-    return false;
-  };
-  render();
-}
-
 /* ===================== 1.5 MonitorStateDemo 逐步执行 ===================== */
 const ADDR = '<0x0000000697c1c210>';
 const MD_CODE = [
@@ -1137,8 +1099,7 @@ function upSteps() {
 
 /* ===================== 注册与挂载 ===================== */
 const LABS = {
-  objlayout: objLayout,
-  monitordemo: el => stepLab(el, {title: '跟着 MonitorStateDemo 走一遍', intro: '和下面的程序是同一个场景：三个线程分别待在 Owner、EntryList、WaitSet。每一步都标出了此刻的线程状态和 jstack 里会看到的那一行。', code: () => MD_CODE, steps: mdSteps, stage: mdStage}),
+  monitordemo: el => stepLab(el, {title: '跟着 MonitorStateDemo 走一遍', intro: '和下面的 MonitorStateDemo 是同一个场景：三个线程分别待在 Owner、EntryList、WaitSet。每一步都标出了此刻的线程状态和 jstack 里会看到的那一行。', code: () => MD_CODE, steps: mdSteps, stage: mdStage}),
   statemachine: stateMachine,
   notifydemo: el => stepLab(el, {title: '三个线程轮流打印：notify 为什么会卡死', intro: '同一个场景，切换 notify 和 notifyAll 对比。这也是单元十一“循环打印 ABC”最容易写错的地方。', variants: [{key: 'one', label: 'notify()'}, {key: 'all', label: 'notifyAll()'}], variantLabel: '唤醒方式', code: NT_CODE, steps: ntSteps, stage: ntStage}),
   interruptdemo: el => stepLab(el, {title: '中断标志是怎么被“吞掉”的', intro: '盯住中断标志位这一个比特。切换 catch 里的写法，看线程能不能停下来。', variants: [{key: 'keep', label: 'catch 里恢复标志'}, {key: 'drop', label: 'catch 里什么都不做'}], variantLabel: 'catch 写法', code: IT_CODE, steps: itSteps, stage: itStage}),

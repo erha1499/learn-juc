@@ -195,19 +195,18 @@ def deep_open_html(text):
 
 # ---------- 插入演示 ----------
 RULES = [  # (动作, 匹配方式, 匹配文本, 演示名)
-    ('after', 'p', '按这张表算', 'objlayout'),
     ('replace_embed', 'embed', 'Monitor 的三个区域', 'monitordemo'),
     ('replace_embed', 'embed', 'Java 线程 6 种状态及转换', 'statemachine'),
-    ('after', 'p', '“必须用 while”背后是', 'notifydemo'),
+    ('after', 'p', '“必须用 while”', 'notifydemo'),
     ('after', 'code', 'Thread t = new Thread(() -> {', 'interruptdemo'),
     ('after', 'p', '`count++` 为什么不是原子的', 'race'),
     ('after', 'p', '**场景题：两个线程各对', 'min2'),
     ('after', 'p', 'CPU 算得比内存快得多', 'visibility'),
     ('after', 'code', '① hb ②（程序顺序）', 'hb'),
     ('after', 'p', 'synchronized 只保证锁内', 'dcl'),
-    ('after', 'p', '异常表第一行的意思是', 'bytecode'),
+    ('after', 'p', '同步代码块通常有**两个** monitorexit', 'bytecode'),
     ('after', 'table', '| 锁状态 | 其余位存什么', 'markword'),
-    ('after', 'p', '把“进内核”展开', 'lifecycle'),
+    ('after', 'p', '一句话串起来', 'lifecycle'),
     ('replace_embed', 'embed', 'synchronized 锁升级', 'upgrade'),
 ]
 DROP_AFTER_EMBED = {'monitordemo': '左边是对象本身', 'statemachine': '上排是主线', 'upgrade': '每一级的左侧是对象头'}
