@@ -668,7 +668,7 @@ JDK 1.6 之前 synchronized 一上来就是重量级锁。1.6 引入了分级：
 CAS(V, E, N)：如果内存位置 V 的值等于预期值 E，就把它更新为 N，返回成功；否则什么都不做，返回失败。**比较和交换是一条指令完成的**，中间不会被打断。
 
 - 硬件：x86 的 `cmpxchg` 指令，多核下加 `lock` 前缀，锁住该缓存行（早期是锁总线）。`lock` 前缀同时起到内存屏障作用，所以 CAS 也有 volatile 读写的内存语义。
-- Java：`sun.misc.Unsafe` 的 native 方法 `compareAndSwapInt(Object o, long offset, int expected, int x)`，用“对象 + 字段偏移量”定位内存。偏移量就是字段离对象开头有多少字节：对象头占 12 字节（3.4 节），所以在 JDK 17 上实测，AtomicInteger 里 value 的偏移量正好是 12。
+- Java：通过 `Unsafe` 类的 native 方法 `compareAndSwapInt` 调用这条指令，用“哪个对象 + 字段在对象里的位置”定位要改的那块内存。
 
 `AtomicInteger` 的自增实现：
 
@@ -718,13 +718,7 @@ ref.compareAndSet(100, 101, stamp, stamp + 1);  // 值和版本号都对才成�
 
 ### 4.4 原子类家族
 
-| 类别 | 代表类 | 备注 |
-| --- | --- | --- |
-| 基本类型 | `AtomicInteger`、`AtomicLong`、`AtomicBoolean` | 最常用 |
-| 数组 | `AtomicIntegerArray`、`AtomicReferenceArray` | 按下标原子更新 |
-| 引用 | `AtomicReference`、`AtomicStampedReference`、`AtomicMarkableReference` | 后两个解决 ABA |
-| 字段更新器 | `AtomicIntegerFieldUpdater` 等 | 对已有类的 volatile 字段做 CAS，不用每个对象包一个 Atomic |
-| 累加器 | `LongAdder`、`LongAccumulator` | 高并发计数 |
+最常用的是两类：**基本类型**的 `AtomicInteger`、`AtomicLong`、`AtomicBoolean`，以及带版本号、能解决 ABA 的**引用类型** `AtomicStampedReference`。此外还有按下标更新的数组版（如 `AtomicIntegerArray`）、给已有类的 volatile 字段做 CAS 的字段更新器（如 `AtomicIntegerFieldUpdater`），以及高并发计数用的 `LongAdder`（下一节）。
 
 ### 4.5 LongAdder：用“分散热点”解决自旋问题
 
@@ -737,7 +731,7 @@ LongAdder 的做法：
 3. CAS base 失败（说明有竞争），就创建 cells，每个线程按自己的哈希值（probe）去 CAS 对应的 Cell。冲突多了会扩容 cells，最大到 CPU 核数。
 4. `sum()` = base + 所有 Cell 的值。
 
-- Cell 类加了 `@Contended` 注解做缓存行填充，避免**伪共享**（不同变量落在同一个缓存行里（缓存行见 2.3 节），互相让对方缓存失效）。
+- 不同线程改的 Cell 如果挤在同一个缓存行里，会互相让对方的缓存失效，这叫**伪共享**（缓存行见 2.3 节）。所以 Cell 用 `@Contended` 注解做了填充，让每个 Cell 独占一个缓存行。
 - 代价：`sum()` 不加锁，边计算别人边加，所以不是精确的快照；内存占用更大。
 
 **AtomicLong vs LongAdder**：需要精确实时值或 CAS 语义（如生成序列号）用 AtomicLong；高并发统计计数（QPS、调用次数）用 LongAdder。这个“分段分散热点”的思路和 ConcurrentHashMap 的 size 统计（`CounterCell`）完全一样。
