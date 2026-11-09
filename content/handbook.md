@@ -805,13 +805,11 @@ private transient volatile Node head, tail;
 ```
 
 - `head` 是一个**虚节点（哨兵）**，代表“当前持有锁的那个人”，它的 thread 字段是 null。
-- waitStatus：`SIGNAL(-1)` 表示“我释放时要叫醒后继”，`CANCELLED(1)` 表示超时或中断取消了，`CONDITION(-2)` 表示在条件队列，`PROPAGATE(-3)` 用于共享模式传播，`0` 是初始值。
+- waitStatus：最常见的是 `SIGNAL(-1)`，意思是“我释放锁时要叫醒后继”；另外还有表示已取消的 `CANCELLED(1)`、表示在条件队列里的 `CONDITION(-2)`，初始值是 0。
 
-**CLH 是什么，为什么 SIGNAL 记在前驱身上**：CLH 锁原本是一种自旋锁。等锁的线程排成一条链，每个线程只盯着**前驱节点**上的一个状态位自旋，前驱释放锁时改掉这个状态位，后继就知道轮到自己了。AQS 保留了“看前驱”的思路，做了两处改动：把自旋改成 park，不再空转 CPU；加上 next 指针变成双向链表，方便唤醒后继和移除取消的节点。所以 5.3 节里，线程睡下前要把**前驱**的 waitStatus 设成 SIGNAL，意思是“你释放锁时记得叫醒我”。
+**为什么 SIGNAL 记在前驱身上**：这个队列借鉴了 CLH 锁的思路，每个线程只盯着**前驱节点**的状态。所以线程睡下之前，要把**前驱**的 waitStatus 设成 SIGNAL，意思是“你释放锁时记得叫醒我”。AQS 把 CLH 原来的自旋改成了 park，不空转 CPU；又加了 next 指针，变成双向链表，方便唤醒后继和移除取消的节点。
 
 **③ LockSupport.park/unpark**：挂起和唤醒指定线程。和 wait/notify 的区别：不需要先拿锁；可以精确唤醒某个线程；基于“许可证”，**先 unpark 再 park 也不会阻塞**（许可证最多 1 个，不累加），所以不会丢失唤醒。
-
-“许可证”在 HotSpot 里就是一个计数：每个 Java 线程都有一个 `Parker` 对象，里面是一个只取 0 或 1 的 `_counter`，加上一把 pthread 互斥锁和一个条件变量。`unpark` 把 `_counter` 置为 1，如果线程正睡着就叫醒它；`park` 先看 `_counter`，是 1 就置 0 后直接返回，是 0 才在条件变量上睡下（这一步要进内核，见 3.2 节）。“先 unpark 再 park 不阻塞”和“许可证最多 1 个”，都是这个 0/1 计数的直接结果。
 
 ### 5.2 模板方法：子类要实现什么
 
@@ -832,13 +830,19 @@ public final void acquire(int arg) {
 }
 ```
 
-1. **tryAcquire**：子类实现，比如 CAS state 0→1。成功就直接返回，完全不碰队列。
-2. **addWaiter**：把当前线程包成 Node，先设 `node.prev = tail`，再 CAS 把 tail 指向自己，成功后才设 `pred.next = node`。队列为空时先初始化一个虚的 head。
-3. **acquireQueued**：在队列里自旋：
+1. **先试**：调子类的 tryAcquire，比如用 CAS 把 state 从 0 改成 1。成功就直接返回，完全不碰队列。
+2. **入队**：失败就把当前线程包成一个节点，用 CAS 接到队尾。
+3. **睡下**：在队列里循环。轮到自己（前驱是 head）就再试一次；没轮到就把前驱标成 SIGNAL，然后 park。
+4. **被叫醒再试**：被 unpark 后回到循环开头，再试一次。拿到锁后，自己的节点成为新的 head。
+
+#### 深入一层（可跳过）：acquire 的源码细节
+
+- **addWaiter**：把当前线程包成 Node，先设 `node.prev = tail`，再 CAS 把 tail 指向自己，成功后才设 `pred.next = node`。队列为空时先初始化一个虚的 head。
+- **acquireQueued**：在队列里自旋：
    - 如果前驱是 head（轮到我了），再 tryAcquire 一次。成功就把自己设为新 head（thread 置 null），旧 head 出队。
    - 否则调 `shouldParkAfterFailedAcquire`：把前驱的 waitStatus 设为 SIGNAL（“你放锁时记得叫我”），顺便跳过已 CANCELLED 的前驱。
    - 设置成功后 `parkAndCheckInterrupt()` 挂起。被唤醒后回到循环开头重试。
-4. **selfInterrupt**：`acquire` 不响应中断，等待中被中断只记一笔，拿到锁后再把中断标志补上。要响应中断用 `acquireInterruptibly`，被中断就抛异常并取消节点。
+- **selfInterrupt**：`acquire` 不响应中断，等待中被中断只记一笔，拿到锁后再把中断标志补上。要响应中断用 `acquireInterruptibly`，被中断就抛异常并取消节点。
 
 ### 5.4 独占释放：release
 
@@ -853,6 +857,10 @@ public final boolean release(int arg) {
     return false;
 }
 ```
+
+子类的 tryRelease 把 state 减到 0，才算真正释放；这时 AQS 叫醒 head 后面那个节点里的线程，让它回到第 3 步的循环里去抢锁。
+
+#### 深入一层（可跳过）：唤醒时为什么从 tail 往前找
 
 `unparkSuccessor` 的一个经典细节：**如果 head.next 为 null 或已取消，会从 tail 往前找**离 head 最近的有效节点。为什么从尾部找？因为 addWaiter 是先设 prev、再 CAS tail、最后才设 next。任何时刻 prev 链都是完整的，而 next 链可能暂时断开。这也解释了**为什么要用双向链表**：取消节点和判断“前驱是不是 head”都要向前看。
 
