@@ -68,6 +68,15 @@ python3 site/build.py
 3. 在 `site/course.shell.html` 里实现演示，并注册到 `LABS`。
 4. 在 `content/answers.json` 里补上这个单元自测题的答案。
 
+## 内容维护
+
+正文只有一个来源：`content/handbook.md`。其他地方都是从它单向生成或同步的副本，不要在副本里直接修改。
+
+| 副本 | 怎么更新 |
+| --- | --- |
+| 在线网站（`docs/`） | 运行 `python3 site/build.py`，提交并推送到 `main`，GitHub Pages 自动发布 |
+| 飞书文档（可选） | 运行 `FEISHU_DOC=<飞书文档链接或 token> python3 scripts/sync_feishu.py`，整篇覆盖。需要已登录的飞书命令行工具 `lark-cli`；加 `--dry-run` 只生成转换结果，不上传 |
+
 ## 示例代码
 
 `examples/` 里是手册中引用的全部示例，包括循环打印 ABC 的四种写法、生产者消费者、手写线程池，以及用 `Unsafe` 打印 Mark Word、用 jstack 观察 Monitor 区域、用 `javap` 查看 `monitorenter` 的演示程序。运行方法见 [examples/README.md](examples/README.md)。
