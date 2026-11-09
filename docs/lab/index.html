@@ -567,7 +567,7 @@ function monSteps() {
   return [
     {t: '创建对象：Mark Word 末三位是 001', d: 'new 出来的对象放在堆上，对象头的 Mark Word 末三位是 <b>001</b>（无锁），hashCode 的 31 位还全是 0。这时 JVM 里没有 ObjectMonitor：绝大多数对象一辈子都用不到它。', hl: [{p: 'main', i: 0, t: 'main'}], chg: ['obj'],
       s: {mark: MK.fresh, lr: false, mon: null, th: {A: TS('NEW', '', '还没开始执行'), B: TS('NEW', '', '还没开始执行')}}},
-    {t: '调用 hashCode()：哈希值写进对象头', d: '第一次调用 hashCode() 时，JVM 算出 <code>0x5c647e05</code>，写进 Mark Word 的第 8~38 位。这是手册 3.3 节 MarkWordDemo 在 JDK 17 上打印出的真实值。', hl: [{p: 'main', i: 1, t: 'main'}], chg: ['mark'],
+    {t: '调用 hashCode()：哈希值写进对象头', d: '第一次调用 hashCode() 时，JVM 算出 <code>0x5c647e05</code>，写进 Mark Word 的第 8~38 位。这是手册 3.4 节 MarkWordDemo 在 JDK 17 上打印出的真实值。', hl: [{p: 'main', i: 1, t: 'main'}], chg: ['mark'],
       s: {mark: MK.hashed, lr: false, mon: null, th: {A: TS('NEW', '', '还没开始执行'), B: TS('NEW', '', '还没开始执行')}}},
     {t: 'A 加锁，没有竞争：轻量级锁', d: 'A 在自己的栈帧里建一个 <b>Lock Record</b>，把原来的 Mark Word（含 hashCode）复制进去，再用一次 CAS 把 Mark Word 换成指向这个 Lock Record 的指针，末两位变成 <b>00</b>。全程没有 ObjectMonitor，也没有进内核。', hl: [{p: 'A', i: 0, t: 'A'}], chg: ['mark', 'lr', 'thA'],
       s: {mark: MK.thin, lr: true, mon: null, th: {A: TS('RUNNABLE', L, '持有锁'), B: TS('NEW', '', '还没开始执行')}}},
@@ -581,7 +581,7 @@ function monSteps() {
       s: {mark: MK.heavy, lr: false, mon: {owner: 'B', entry: ['A'], wait: []}, th: {A: TS('BLOCKED', RL, '回到 EntryList 重新排队'), B: TS('RUNNABLE', L, '持有锁')}}},
     {t: 'B 退出同步块：释放锁，叫醒 A', d: 'monitorexit 把 Owner 清空，再从 EntryList 叫醒 A。B 的 run 方法执行完，线程结束。', hl: [{p: 'B', i: 3, t: 'B'}], chg: ['thB'],
       s: {mark: MK.heavy, lr: false, mon: {owner: null, entry: ['A'], wait: []}, th: {A: TS('BLOCKED', RL, '已被唤醒，正在抢锁'), B: TS('TERMINATED', '', '线程结束')}}},
-    {t: 'A 重新拿到锁，从 wait() 返回', d: 'A 成为 Owner，从 wait() 的下一行继续执行。它回到 while 再检查一次 ready，这次是 true，于是跳出循环执行 use()。如果这里写的是 if，A 就不会再检查条件，这正是手册 1.8 节要求用 while 的原因。', hl: [{p: 'A', i: 1, t: 'A'}, {p: 'A', i: 4, t: 'A'}], chg: ['thA'],
+    {t: 'A 重新拿到锁，从 wait() 返回', d: 'A 成为 Owner，从 wait() 的下一行继续执行。它回到 while 再检查一次 ready，这次是 true，于是跳出循环执行 use()。如果这里写的是 if，A 就不会再检查条件，这正是手册 3.3 节要求用 while 的原因。', hl: [{p: 'A', i: 1, t: 'A'}, {p: 'A', i: 4, t: 'A'}], chg: ['thA'],
       s: {mark: MK.heavy, lr: false, mon: {owner: 'A', entry: [], wait: []}, th: {A: TS('RUNNABLE', L, '持有锁'), B: TS('TERMINATED', '', '线程结束')}}},
     {t: 'A 退出：monitor 空了，但对象头还指向它', d: 'A 释放锁，Owner、EntryList、WaitSet 都空了。对象头仍然指向这个 ObjectMonitor：<b>正在使用的重量级锁不会退回轻量级锁</b>。', hl: [{p: 'A', i: 5, t: 'A'}], chg: ['thA'],
       s: {mark: MK.heavy, lr: false, mon: {owner: null, entry: [], wait: []}, th: {A: TS('TERMINATED', '', '线程结束'), B: TS('TERMINATED', '', '线程结束')}}},
@@ -724,7 +724,7 @@ var RACE_SRC = {
 };
 function raceLab() {
   var root = document.getElementById('lab-race');
-  var cfg = {unit: '单元二', refs: '对应手册 2.0 · 2.1 · 3.2', title: 'count++ 为什么会丢', motto: '一行 count++ 是三条指令，任意两条之间都可能被切走。',
+  var cfg = {unit: '单元二', refs: '对应手册 2.0 · 2.2 · 3.1', title: 'count++ 为什么会丢', motto: '一行 count++ 是三条指令，任意两条之间都可能被切走。',
     intro: '两个线程各执行一次 count++，正确结果是 2。你来当 CPU 调度器：点哪个线程，哪个线程就执行一条字节码。试试先让两个线程都读一次，再各自写回。'};
   root.innerHTML = labHead(cfg) +
     '<div class="player"><div class="narr" aria-live="polite"><div class="narr-k">刚刚发生了什么</div><h3 class="narr-t"></h3><p class="narr-p"></p></div>' +
@@ -981,11 +981,11 @@ document.getElementById('route').innerHTML = UNITS.map(function (u) {
 }).join('');
 document.getElementById('tabs').innerHTML = LABS.map(function (L) { return '<button type="button" class="tab" role="tab" id="tab-' + L.id + '" aria-controls="lab-' + L.id + '" data-go="' + L.id + '"><span class="tn">' + L.n + '</span>' + L.name + '</button>'; }).join('');
 
-stepLab({id: 'visibility', unit: '单元二', refs: '对应手册 2.0 · 2.2 · 2.5', title: '可见性：一个核写的值，另一个核为什么看不到', motto: '写进了自己的缓存，不等于别人看得见。',
+stepLab({id: 'visibility', unit: '单元二', refs: '对应手册 2.0 · 2.3 · 2.5', title: '可见性：一个核写的值，另一个核为什么看不到', motto: '写进了自己的缓存，不等于别人看得见。',
   intro: '线程 A 把 stop 改成 true，线程 B 在另一个核上循环读 stop。切换上面的“普通变量 / volatile”，对比两种情况下写缓冲、缓存行和失效队列的变化。',
   variants: [{key: 'plain', label: '普通变量'}, {key: 'vol', label: 'volatile'}], variantLabel: '变量类型',
   code: function (v) { return VIS_CODE[v]; }, steps: visSteps, stage: visStage});
-stepLab({id: 'monitor', unit: '单元一 · 单元三', refs: '对应手册 1.5 · 1.8 · 3.3 · 3.4', title: 'synchronized 的一生', motto: '锁记在对象头里；抢不到，才请出 Monitor。',
+stepLab({id: 'monitor', unit: '单元一 · 单元三', refs: '对应手册 3.2 · 3.3 · 3.4 · 3.5', title: 'synchronized 的一生', motto: '锁记在对象头里；抢不到，才请出 Monitor。',
   intro: '跟着一个对象从创建到被两个线程争抢：看 Mark Word 的比特怎么变，ObjectMonitor 什么时候出现，线程怎么在 Owner、EntryList、WaitSet 之间移动。',
   code: function () { return MON_CODE; }, steps: monSteps, stage: monStage});
 stepLab({id: 'aqs', unit: '单元五 · 单元六', refs: '对应手册 5.1 · 5.3 · 5.4 · 6.1', title: 'AQS 排队：ReentrantLock 加锁与解锁', motto: 'AQS 只管排队，抢锁的规则交给子类。',

@@ -18,7 +18,7 @@
 
 | 单元 | 一句话核心 | 依赖前置 | 面试权重 |
 | --- | --- | --- | --- |
-| 一 线程基础 | 线程是什么、在哪里等锁（对象头与 Monitor）、怎么停 | 无 | 高（开场题） |
+| 一 线程基础 | 线程是什么、怎么跑、怎么停 | 无 | 高（开场题） |
 | 二 JMM 与 volatile | 三大问题从哪来，volatile 解决了哪两个 | 一 | 高 |
 | 三 synchronized | 对象头 + monitor，锁升级为了少进内核 | 二 | 极高 |
 | 四 CAS 与原子类 | 无锁的乐观并发，AQS 的地基 | 二 | 高 |
@@ -36,7 +36,7 @@
 
 1. **看学习目标**：单元开头标出了「必会 / 加分 / 了解」三档。时间紧就只啃「必会」，面试想拉开差距再看「加分」。
 2. **先看现象，再学原理**：能用代码复现的问题（死循环停不下来、票卖超了），先给出可运行的代码和真实运行结果，再解释为什么。
-3. **读原理**：每节按「为什么需要 → 底层怎么实现」展开，图和源码只保留理解所需的部分。标题里带「底层预备」的小节（1.5 对象头与 Monitor、2.2 CPU 缓存）是后文反复引用的地基，第一次读不要跳过。
+3. **读原理**：每节按「为什么需要 → 底层怎么实现」展开，图和源码只保留理解所需的部分。标题里带「底层预备」的小节（2.3 CPU 缓存）是后文反复引用的地基，第一次读不要跳过。
 4. **背「面试这样说」**：单元末尾给出 30 秒左右的口述回答，引用块里的话可以直接说出口。它是原理的压缩版，先读懂原理再背，才不会被追问问倒。
 5. **做自测**：合上文档自己口述一遍，答不上来再回看正文。
 6. **动手**：手写题（单元十一）建议在 IDE 里亲手敲一遍并跑通。手撕时最容易在 `while` 还是 `if`、`notify` 还是 `notifyAll` 上出错。
@@ -47,7 +47,7 @@
 
 ## 单元一 线程基础：线程是什么、怎么跑、怎么停
 
-本单元的核心有两条。一是 Java 线程就是操作系统线程（1:1），创建、切换、阻塞都有内核成本，这是后面“锁优化”和“线程池”存在的理由。二是线程之间的排队、等待和唤醒，都发生在对象关联的 monitor 上（1.5 节）。看懂这个结构，线程状态和 wait/notify 就不用死记。
+本单元的核心：Java 线程就是操作系统线程（1:1），创建、切换、阻塞都要操作系统出手，有实实在在的成本。这是后面“锁优化”和“线程池”存在的理由。
 
 **学习目标**
 
@@ -111,150 +111,7 @@ executor.submit(() -> 1 + 1);
 
 **start() 和 run() 的区别**：`start()` 调用 native 的 `start0()`，让 JVM 创建内核线程，该线程就绪后再回调 `run()`。直接调 `run()` 只是在当前线程里执行了一个普通方法。同一个线程 `start()` 两次会抛 `IllegalThreadStateException`（threadStatus 不为 0）。
 
-### 1.5 底层预备：线程在等什么——对象头与 Monitor
-
-接下来的线程状态、wait/notify，以及单元三的 synchronized，会反复用到 monitor、EntryList、WaitSet 这几个词。它们不是比喻，而是 JVM 里真实存在的数据结构。这一节先讲清两件事：一个对象在内存里长什么样，线程在哪里排队、在哪里等待。
-
-**① 一个 Java 对象在堆里分三块**
-
-| 组成部分 | 大小（64 位 JVM，默认开启压缩指针） | 存什么、有什么用 |
-| --- | --- | --- |
-| 对象头 · Mark Word | 8 字节 | 对象的运行时状态：hashCode、GC 分代年龄、**锁状态**。synchronized 的锁就记在这里 |
-| 对象头 · 类型指针 | 4 字节 | 指向方法区（元空间）里这个类的元数据。`getClass()`、`instanceof`、调用重写的方法，都靠它找到对象属于哪个类 |
-| 对象头 · 数组长度 | 4 字节，只有数组才有 | `arr.length` 读的就是这里 |
-| 实例数据 | 各字段大小之和 | 字段的值，包括从父类继承的字段 |
-| 对齐填充 | 0\~7 字节 | HotSpot 要求对象大小是 8 的倍数，不够就补齐 |
-
-按这张表算：`new Object()` 的对象头是 8 + 4 = 12 字节，没有字段，补 4 字节凑成 **16 字节**；`new int[3]` 是 12 + 4（长度）+ 3 × 4 = 28 字节，补齐到 **32 字节**。在 JDK 17 上用 `Instrumentation.getObjectSize()` 实测，结果正是 16 和 32。
-
-**② Mark Word：对象的“状态栏”**
-
-Mark Word 只有 64 位，却要存好几样东西，所以它是**复用**的：JVM 先看最低 2 位的锁标志位，再决定怎么解读其余 62 位。没加锁时，它从高位到低位的布局是：
-
-| 未使用 | hashCode | 未使用 | GC 分代年龄 | 是否偏向 | 锁标志位 |
-| --- | --- | --- | --- | --- | --- |
-| 25 位 | 31 位 | 1 位 | 4 位 | 1 位（0） | 2 位（01） |
-
-两个顺手能记住的细节：
-
-- GC 分代年龄只有 4 位，最大是 15。这就是 `-XX:MaxTenuringThreshold` 最多只能设成 15 的原因。
-- hashCode 不是对象一创建就有的。第一次调用 `hashCode()` 时才算出来，写进这 31 位。
-
-加锁以后，这 64 位会被改写成别的内容（比如一个指针），锁标志位也跟着变：01 无锁，00 轻量级锁，10 重量级锁。所以**在对象这一侧，“锁”就是 Mark Word 里的几个比特**，任何对象都能当锁用。每种状态具体存什么，3.3 节会用代码把真实的比特打印出来。
-
-**③ Monitor：管理“谁拿锁、谁排队、谁在等”的结构**
-
-Monitor（管程，也叫监视器）是操作系统课里的经典同步机制：一把互斥锁，加上排队和等待用的队列，保证同一时刻只有一个线程在里面执行。Java 把它和对象绑在了一起：`synchronized(obj)` 就是进入 obj 的 monitor，`obj.wait()` 和 `obj.notify()` 就是在这个 monitor 的等待区里等和叫人。
-
-HotSpot 用一个 C++ 对象 `ObjectMonitor` 实现 monitor。有三点最容易误解：
-
-- **它不在 Java 对象里**，是 JVM 另外分配的一块内存。对象通过 Mark Word 里的指针找到它，这时锁标志位是 10。
-- **不是每个对象一出生就有 monitor**。出现锁竞争，或者在锁内调用 `wait()` 时，JVM 才给对象分配一个，这叫“锁膨胀”。没有竞争的 synchronized 根本用不到它（单元三的锁升级）。
-- **它内部分三个区域**，线程待在哪个区域，决定了它在 Java 里是什么状态。
-
-用一间诊室来类比这三个区域：
-
-| 区域 | 源码字段 | 诊室类比 | 线程状态 |
-| --- | --- | --- | --- |
-| Owner | `_owner` | 正在诊室里看病的人，同一时刻最多一个 | 持有锁，通常是 RUNNABLE |
-| EntryList | `_EntryList`、`_cxq` | 门口排队、等着进诊室的人 | BLOCKED |
-| WaitSet | `_WaitSet` | 看到一半发现化验结果没出来，主动出门去休息室等叫号的人 | WAITING 或 TIMED\_WAITING |
-
-线程在三个区域间怎么流转，见下图。最关键的是最后一步：**叫号（notify）只是把人从休息室叫回门口排队，不是直接请进诊室**。
-
-![Monitor 的三个区域 · 线程在其间的流转与状态](img/monitor.png)
-
-左边是对象本身，重量级锁时 Mark Word 存的是 ObjectMonitor 的地址。右边的三个区域里，虚线是 Owner 释放锁时叫醒一个等锁的线程，加粗的线是 notify 把线程送回 EntryList。
-
-**跑一下看看**：下面的程序让三个线程分别待在三个区域里，再打印它们的状态。
-
-```java
-public class MonitorStateDemo {
-    static final Object lock = new Object();
-
-    public static void main(String[] args) throws Exception {
-        Thread waiter = new Thread(() -> {
-            synchronized (lock) {
-                try { lock.wait(); } catch (InterruptedException ignored) { }  // 进 WaitSet，并释放锁
-                System.out.println("waiter 被唤醒并重新拿到了锁");
-            }
-        }, "waiter");
-
-        Thread owner = new Thread(() -> {
-            synchronized (lock) {
-                sleep(3000);        // 拿着锁睡觉：sleep 不释放锁
-                lock.notify();      // 把 waiter 从 WaitSet 挪到 EntryList
-                sleep(3000);        // 仍然拿着锁
-            }
-        }, "owner");
-
-        Thread blocked = new Thread(() -> {
-            synchronized (lock) { }  // 抢不到锁，进 EntryList
-        }, "blocked");
-
-        waiter.start();  Thread.sleep(100);
-        owner.start();   Thread.sleep(100);
-        blocked.start(); Thread.sleep(300);
-        System.out.println("阶段一  owner=" + owner.getState()
-                + "  blocked=" + blocked.getState() + "  waiter=" + waiter.getState());
-
-        Thread.sleep(3000);  // 此时 owner 已经 notify，但还没释放锁
-        System.out.println("阶段二  owner=" + owner.getState()
-                + "  blocked=" + blocked.getState() + "  waiter=" + waiter.getState());
-
-        owner.join(); blocked.join(); waiter.join();
-    }
-
-    static void sleep(long ms) {
-        try { Thread.sleep(ms); } catch (InterruptedException ignored) { }
-    }
-}
-```
-
-JDK 17 实测输出：
-
-```text
-阶段一  owner=TIMED_WAITING  blocked=BLOCKED  waiter=WAITING
-阶段二  owner=TIMED_WAITING  blocked=BLOCKED  waiter=BLOCKED
-waiter 被唤醒并重新拿到了锁
-```
-
-- 阶段一：owner 拿着锁在 sleep，状态是 TIMED\_WAITING，但它仍然是 Owner，因为 **sleep 不释放锁**。blocked 在 EntryList，waiter 在 WaitSet。
-- 阶段二：owner 已经 notify，但还没退出同步块。waiter 从 WaitSet 被挪到了 EntryList，状态从 WAITING 变成了 **BLOCKED**，还要等 owner 释放锁后再去抢。
-
-程序运行时用 `jstack <进程号>` 看线程栈，能直接看到每个线程卡在 monitor 的哪个区域（阶段一，节选）：
-
-```text
-"waiter" ... in Object.wait()
-   java.lang.Thread.State: WAITING (on object monitor)
-    - waiting on <0x0000000697c1c210> (a java.lang.Object)
-
-"owner" ... waiting on condition
-   java.lang.Thread.State: TIMED_WAITING (sleeping)
-    - locked <0x0000000697c1c210> (a java.lang.Object)
-
-"blocked" ... waiting for monitor entry
-   java.lang.Thread.State: BLOCKED (on object monitor)
-    - waiting to lock <0x0000000697c1c210> (a java.lang.Object)
-```
-
-| jstack 里的字样 | 含义 | 所在区域 |
-| --- | --- | --- |
-| `- locked <地址>` | 持有这把锁 | Owner |
-| `- waiting to lock <地址>` | 抢锁失败，正在排队 | EntryList |
-| `- waiting on <地址>` | 调用了 wait，在等通知 | WaitSet |
-| `- waiting to re-lock in wait() <地址>` | 已被 notify，正在重新抢锁（阶段二的 waiter） | EntryList |
-
-三个线程后面的地址都是 `0x0000000697c1c210`，说明它们围着同一个对象的 monitor。线上排查锁问题时，按这个地址把线程归类，就能看出谁拿着锁、谁在排队。注意：jstack 在 waiter 自己的栈帧下也会显示一行 `- locked`，那只表示它是在这个同步块里调用的 wait，锁其实已经释放了。
-
-**带着这张图，后面几个经典问题都能自己推出来**：
-
-- **wait/notify 为什么定义在 Object 上？** 任何对象都可能关联一个 monitor，WaitSet 属于对象的 monitor，而不属于某个线程。
-- **为什么必须在 synchronized 里调用？** 只有 Owner 才有资格把自己放进 WaitSet，或者从 WaitSet 叫人。不是 Owner 就调用，会抛 `IllegalMonitorStateException`，字面意思就是“monitor 状态不对”。
-- **BLOCKED 和 WAITING 有什么区别？** BLOCKED 在门口，锁一空就去抢；WAITING 在休息室，没人叫号就一直等。
-- **wait 为什么要放在 while 里？** 被叫号后只是回到门口重新排队。等它真正进门时，条件可能已经被先进门的人改掉了，所以要重新检查（1.8 节）。
-
-### 1.6 六种状态
+### 1.5 六种状态
 
 `Thread.State` 枚举定义了 6 种状态（下方还会画一张状态转换图）：
 
@@ -269,45 +126,13 @@ waiter 被唤醒并重新拿到了锁
 
 上排是主线；下排三种等待状态都从 RUNNABLE 进入，也都回到 RUNNABLE。
 
-**BLOCKED 和 WAITING 的区别**（高频）：BLOCKED 是“被动抢锁失败”，锁一释放就自动去抢；WAITING 是“主动放弃”，必须等其他线程 notify/unpark/中断。
+**BLOCKED 和 WAITING 的区别**（高频）：BLOCKED 是在**等锁**，抢 synchronized 的锁没抢到，锁一释放就自动去抢；WAITING 是在**等通知**，自己主动停下，必须等别的线程 notify、unpark 或中断它。单元三会看到，这两种线程分别待在 monitor 的两个不同区域。
 
 一个反直觉的点：**等 `ReentrantLock` 的线程是 WAITING，不是 BLOCKED**。因为 AQS 是用 `LockSupport.park()` 挂起线程的（见单元五）。用 jstack 看到大量 `WAITING (parking)` 就是这个原因。
 
-**wait 中的线程怎么回到 RUNNABLE**：被 notify/notifyAll、超时或被中断后，它**先进入 BLOCKED 重新抢 monitor 锁**，抢到了才是 RUNNABLE，并从 `wait()` 的下一行继续执行。
+**wait 中的线程怎么回到 RUNNABLE**：被 notify/notifyAll、超时或被中断后，它**先进入 BLOCKED 重新抢锁**，抢到了才是 RUNNABLE，并从 `wait()` 的下一行继续执行。
 
-### 1.7 sleep 与 wait
-
-| 对比项 | `Thread.sleep()` | `Object.wait()` |
-| --- | --- | --- |
-| 所属类 | Thread 的静态方法 | Object 的实例方法 |
-| 是否释放锁 | **不释放** | **释放** monitor 锁 |
-| 使用前提 | 任意位置 | 必须在 `synchronized` 内，否则抛 `IllegalMonitorStateException` |
-| 唤醒方式 | 时间到自动醒 | notify/notifyAll、超时、中断 |
-| 用途 | 暂停执行 | 线程间协作（等条件） |
-
-- **sleep 会释放 CPU 吗？** 会，线程进入 TIMED\_WAITING，不参与调度；但它握着的锁不放。
-- **为什么 wait 定义在 Object 而不是 Thread？** 因为锁属于对象。每个对象都可以关联一个 monitor（1.5 节），wait 要释放的是“这个对象的锁”，并进入“这个对象的等待集合（WaitSet）”。sleep 和锁无关，只影响当前线程，所以在 Thread 上。
-- **为什么 wait 必须在 synchronized 里？** 机制上，只有 monitor 的 Owner 才能操作 WaitSet（1.5 节），没拿锁就调用会抛异常。设计上，这样规定是为了避免“丢失唤醒”：线程 A 判断条件不满足、还没来得及 wait，线程 B 就改了条件并 notify，A 再 wait 就永远等不到了。“判断条件 + wait”必须是原子的。
-
-### 1.8 notify 与 notifyAll
-
-- `notify()` 从该对象的 WaitSet 中唤醒一个线程，`notifyAll()` 唤醒全部，被唤醒的线程再竞争锁。
-- **notify 选哪个？** JVM 规范说是“任意一个”。HotSpot 实现中通常按进入 WaitSet 的顺序唤醒，但代码不能依赖这一点。
-- 多个线程等不同条件时（如 ABC 轮流打印），用 notify 可能叫醒“错的人”导致全员等待，所以要用 notifyAll，或者换成多个 Condition 精准唤醒。
-- 被唤醒后条件不一定成立（其他线程可能先抢到锁改了数据，或者发生虚假唤醒），所以**wait 必须放在 while 循环里**：
-
-```java
-synchronized (lock) {
-    while (!condition) {   // 不能用 if
-        lock.wait();
-    }
-    // do something
-}
-```
-
-“必须用 while”背后是 monitor 的一个设计选择。Java 采用的是 **Mesa 风格**：调用 notify 的线程继续执行，被唤醒的线程回到 EntryList，稍后再和别人一起抢锁（1.5 节的图）。它抢到锁之前，别的线程完全可能先进去把条件改掉。另一种 **Hoare 风格**会在 notify 时立刻把锁交给被唤醒者，条件一定成立，可以用 if；但它要多做一次线程切换，实现也更复杂，Java、pthread 等主流实现都没有采用。
-
-### 1.9 中断与停止线程
+### 1.6 中断与停止线程
 
 Java 没有办法强制杀死一个线程，只能“请求”它停下——这就是中断。
 
@@ -339,7 +164,7 @@ t.interrupt();
 - `Thread.stop()` 已废弃：它会立刻释放线程持有的所有锁，可能让对象停在“改了一半”的状态。
 - 线程池里的任务：`future.cancel(true)` 或 `shutdownNow()`，底层也是 interrupt。
 
-### 1.10 线程间通信与其他
+### 1.7 线程间通信与其他
 
 线程间通信按“机制”分类，每种对应后面的一个单元：
 
@@ -360,26 +185,15 @@ t.interrupt();
 
 > Java 在 Thread.State 里定义了 6 种状态。new 出来还没 start 是 NEW；start 后进入 RUNNABLE，它包含操作系统层面的就绪和运行；run 执行完就是 TERMINATED。中间有三种等待：抢 synchronized 锁失败进入 BLOCKED，拿到锁就回到 RUNNABLE；调用 wait、join 或 LockSupport.park 进入 WAITING，要等别人 notify 或 unpark；带超时的 sleep、wait(n) 进入 TIMED\_WAITING，时间到自动返回。补充一点：wait 的线程被唤醒后，要先回到 BLOCKED 重新抢锁。
 
-**问：sleep 和 wait 有什么区别？**
-
-> 我从四个角度说。一是归属，sleep 是 Thread 的静态方法，wait 是 Object 的方法。二是锁，sleep 不释放锁，wait 会释放锁。三是使用条件，wait 必须在 synchronized 里调用，否则抛 IllegalMonitorStateException。四是唤醒，sleep 到时间自动醒，wait 要靠 notify/notifyAll、超时或中断。wait 放在 Object 上，是因为锁是对象级别的，等待队列挂在对象的 monitor 上。
-
 **问：如何停止一个正在运行的线程？**
 
 > 推荐用中断。调用 t.interrupt() 设置中断标志，线程在循环里检查 isInterrupted() 决定是否退出。如果线程正阻塞在 sleep、wait 上，会抛 InterruptedException 并清除标志，所以 catch 里要再调一次 interrupt() 恢复标志。也可以用 volatile 标志位，但它叫不醒正在 sleep 的线程。stop() 已经废弃，因为它会强行释放所有锁，让数据停在改了一半的状态。
-
-**问：说一下 Java 对象的内存布局，对象头里有什么？**
-
-> 一个对象在堆里分三部分：对象头、实例数据和对齐填充。对象头里有 Mark Word 和类型指针，数组还多一个长度字段。Mark Word 在 64 位 JVM 上占 8 字节，存 hashCode、GC 分代年龄和锁状态，最低两位是锁标志位，加锁时这块内容会被改写成指向锁记录或 monitor 的指针。类型指针指向方法区里的类元数据，开启压缩指针时占 4 字节。实例数据是字段的值，对齐填充让对象大小凑成 8 的倍数，所以一个 new Object() 是 16 字节。和并发相关的是 Mark Word：重量级锁时它指向 ObjectMonitor，里面的 EntryList 放等锁的线程，WaitSet 放调用了 wait 的线程。
 
 ### 自测
 
 - [ ] 为什么局部变量是线程安全的，成员变量不是？
 - [ ] 等 ReentrantLock 的线程是什么状态？为什么？
-- [ ] wait 为什么必须在 synchronized 里，且要放在 while 里？
 - [ ] catch 到 InterruptedException 后为什么要再调一次 interrupt()？
-- [ ] new Object() 占多少字节？分别是哪几部分？
-- [ ] Monitor 的三个区域各对应哪种线程状态？被 notify 的线程立刻就能执行吗？在 jstack 里会看到什么？
 
 ## 单元二 JMM 与 volatile：并发 bug 从哪里来
 
@@ -446,13 +260,29 @@ public class TicketDemo {
 
 4 个线程一共调用 20000 次 `sell()`，票应该全部卖光。实测 3 次得到剩余 2183、1645、0。余票没减完，说明有两个线程读到了同一个票数、各自减 1 后写回，同一张票被卖了两次。还要注意，第 3 次的结果刚好对了：**并发 bug 不是每次都会出现，跑对一次不代表代码正确**。
 
-### 2.1 三大问题的根源
+### 2.1 先修好它：synchronized 怎么用
+
+现象二只要给 `sell()` 加上 `synchronized` 就对了。synchronized 是 Java 内置的锁：同一时刻，只允许一个线程执行被它保护的代码。它有三种写法，区别在于锁的是哪个对象：
+
+```java
+public synchronized void a() {}          // 锁当前实例 this
+public static synchronized void b() {}   // 锁当前类的 Class 对象
+synchronized (lockObj) { }               // 锁括号里的对象
+```
+
+- **静态方法和普通方法的区别**：锁的是不同对象（Class 对象 vs this），所以一个线程调静态同步方法、另一个调实例同步方法，**不互斥**。
+- 不要锁 String 常量和 `Integer` 等包装类：字符串常量池和 Integer 缓存会让不相关的代码锁到同一个对象；`count++` 之后 Integer 又变成了新对象，锁就失效了。
+- 构造方法不能用 synchronized 修饰（语法不允许），因为对象构造完成前其他线程本来就拿不到它的引用。
+
+### 2.2 三大问题的根源
 
 | 问题 | 根源 | 典型现象 | 谁来解决 |
 | --- | --- | --- | --- |
 | 可见性 | 每个 CPU 核有自己的缓存，写入先进缓存/写缓冲 | 线程 A 把 flag 改成 true，线程 B 一直读到 false，死循环 | volatile、synchronized、Lock、final |
 | 有序性 | 编译器和 CPU 为了性能重排指令 | DCL 单例拿到半初始化对象 | volatile、synchronized |
 | 原子性 | 线程在任意两条指令之间都可能被切走 | `count++` 丢失更新 | synchronized、Lock、CAS/原子类 |
+
+**有序性为什么会出问题**：编译器和 CPU 都会为了性能调整指令顺序，但遵守 as-if-serial 规则：不管怎么重排，**单线程**的执行结果不变，有数据依赖的指令也不会被重排。问题在于它只照顾单线程：你在一个线程里先后写两个没有依赖的变量，另一个线程看到的顺序可能是反的。
 
 `count++` 为什么不是原子的？它对应三步：读 count 到寄存器 → 寄存器 +1 → 写回。两个线程都读到 5，都写回 6，就丢了一次。
 
@@ -471,7 +301,7 @@ public class TicketDemo {
 
 **场景题：两个线程各对 `int x = 0` 执行 50 次 `x++`，结果可能是多少？** 答：最大 100；大多数人会答最小 50，但理论最小是 **2**。构造方式：A 读到 0 后被挂起；B 跑完 49 次；A 写回 1；B 读到 1 后被挂起；A 跑完剩下 49 次；B 写回 2。能说出这个构造过程很加分。
 
-### 2.2 底层预备：从 CPU 缓存到 JMM
+### 2.3 底层预备：从 CPU 缓存到 JMM
 
 **先看硬件：一个核写的值，另一个核为什么看不到**
 
@@ -495,12 +325,6 @@ CPU 算得太快、内存太慢，所以每个核和内存之间隔着好几层�
 - JMM（Java Memory Model）是一套**规范**，不是 JVM 的内存区域（堆、栈那个叫“运行时数据区”，别混）。
 - 它的抽象：共享变量在**主内存**，每个线程有自己的**工作内存**（对应 CPU 缓存、寄存器、写缓冲）。线程只能操作工作内存，再同步回主内存。
 - 它的作用：屏蔽 x86、ARM 等硬件内存模型的差异，给程序员一个统一的承诺：**只要你按规则写（用 volatile/锁），就能看到正确的结果**。
-
-### 2.3 重排序与 as-if-serial
-
-- 三种重排序：编译器优化重排（含 JIT）、指令级并行重排（CPU 乱序执行）、内存系统重排（写缓冲导致）。
-- **as-if-serial**：不管怎么重排，**单线程**的执行结果不变。有数据依赖的指令不会被重排。
-- 问题在于：它只保证单线程。对其他线程来说，你的两条无依赖的写操作可能倒过来被看到。
 
 ### 2.4 happens-before：JMM 给的承诺
 
@@ -531,8 +355,6 @@ if (ready) {      // ③ volatile 读
 }
 // ① hb ②（程序顺序），② hb ③（volatile），③ hb ④（程序顺序）⇒ ① hb ④
 ```
-
-这也是 AQS 的底气：AQS 的 state 是 volatile 的，释放锁时写 state、加锁时读 state，所以临界区内的普通变量修改也能被下一个拿锁的线程看到。
 
 ### 2.5 volatile 的底层：内存屏障
 
@@ -634,23 +456,11 @@ synchronized 只保证锁内的线程看到正确结果，第一次检查在锁�
 - 加分：3.3 用代码打印 Mark Word、“hashCode 与偏向锁”、偏向锁为什么被废弃、3.4 重量级锁为什么“重”
 - 了解：3.2 字节码与异常表、3.6 锁消除与锁粗化
 
-先回忆 2.0 节的卖票代码：给 `sell()` 加上 `synchronized` 后，每次都能正确卖光。本单元要回答的就是：这一个关键字在 JVM 里到底做了什么。
+单元二用 synchronized 修好了卖票程序（2.1 节）。本单元回答：这一个关键字在 JVM 里到底做了什么。
 
-1.5 节已经介绍了对象头和 Monitor 的基本结构。本单元往下再挖一层：先看 synchronized 编译成了什么（3.2），再把 Mark Word 的每一位打印出来（3.3），然后进到 ObjectMonitor 内部（3.4），最后串成锁升级的全过程（3.5）。
+顺序是：先看它编译成了什么（3.1），再看抢不到锁的线程在哪里排队（3.2），然后是在锁里等待和唤醒（3.3），接着看锁的状态怎么记在对象头里（3.4），最后把这些串成锁升级的全过程（3.5）。
 
-### 3.1 三种用法，锁的分别是谁
-
-```java
-public synchronized void a() {}          // 锁当前实例 this
-public static synchronized void b() {}   // 锁当前类的 Class 对象
-synchronized (lockObj) { }               // 锁括号里的对象
-```
-
-- **静态方法和普通方法的区别**：锁的是不同对象（Class 对象 vs this），所以一个线程调静态同步方法、另一个调实例同步方法，**不互斥**。
-- 不要锁 String 常量和 `Integer` 等包装类：字符串常量池和 Integer 缓存会让不相关的代码锁到同一个对象；`count++` 之后 Integer 又变成了新对象，锁就失效了。
-- 构造方法不能用 synchronized 修饰（语法不允许），因为对象构造完成前其他线程本来就拿不到它的引用。
-
-### 3.2 字节码层面
+### 3.1 字节码层面
 
 - **同步代码块**：编译出 `monitorenter` 和 `monitorexit` 指令。通常有**两个** monitorexit：一个在正常返回路径，一个在异常路径。这就是 synchronized 抛异常也会自动释放锁的原因。
 - **同步方法**：没有这两条指令，而是在方法的 access flags 里加一个 `ACC_SYNCHRONIZED`。JVM 调用方法时看到它，就先去拿锁。
@@ -702,9 +512,191 @@ public synchronized void method();
 
 异常表第一行的意思是：第 7\~19 条指令（同步块内部）抛出任何异常，都跳到第 22 条，先 monitorexit 再 athrow。这就是“synchronized 抛异常也会释放锁”的底层保证。第二行覆盖的是异常处理代码自己，是 javac 加的保险。再留意第 5 条：锁对象在加锁前就存进了局部变量，解锁时用的是这份副本，所以加锁和解锁一定是同一个对象。
 
-### 3.3 Mark Word 的完整布局：把锁状态打印出来
+### 3.2 Monitor：抢不到锁的线程在哪里等
 
-1.5 节讲过，Mark Word 占 8 字节，靠最低几位区分锁状态。下表是 64 位 HotSpot 里，每种锁状态下这 64 位分别存什么：
+Monitor（管程，也叫监视器）是操作系统课里的经典同步机制：一把互斥锁，加上排队和等待用的队列，保证同一时刻只有一个线程在里面执行。Java 把它和对象绑在了一起：`synchronized(obj)` 就是进入 obj 的 monitor，`obj.wait()` 和 `obj.notify()` 就是在这个 monitor 的等待区里等和叫人。
+
+HotSpot 用一个 C++ 对象 `ObjectMonitor` 实现 monitor。有三点最容易误解：
+
+- **它不在 Java 对象里**，是 JVM 另外分配的一块内存。对象通过对象头里的 Mark Word 找到它（Mark Word 是对象头里记录锁状态的 8 个字节，3.4 节细讲）。
+- **不是每个对象一出生就有 monitor**。出现锁竞争，或者在锁内调用 `wait()` 时，JVM 才给对象分配一个，这叫“锁膨胀”。没有竞争的 synchronized 根本用不到它（3.5 节的锁升级）。
+- **它内部分三个区域**，线程待在哪个区域，决定了它在 Java 里是什么状态。
+
+用一间诊室来类比这三个区域：
+
+| 区域 | 源码字段 | 诊室类比 | 线程状态 |
+| --- | --- | --- | --- |
+| Owner | `_owner` | 正在诊室里看病的人，同一时刻最多一个 | 持有锁，通常是 RUNNABLE |
+| EntryList | `_EntryList`、`_cxq` | 门口排队、等着进诊室的人 | BLOCKED |
+| WaitSet | `_WaitSet` | 看到一半发现化验结果没出来，主动出门去休息室等叫号的人 | WAITING 或 TIMED\_WAITING |
+
+线程在三个区域间怎么流转，见下图。最关键的是最后一步：**叫号（notify）只是把人从休息室叫回门口排队，不是直接请进诊室**。
+
+![Monitor 的三个区域 · 线程在其间的流转与状态](img/monitor.png)
+
+左边是对象本身，重量级锁时 Mark Word 存的是 ObjectMonitor 的地址。右边的三个区域里，虚线是 Owner 释放锁时叫醒一个等锁的线程，加粗的线是 notify 把线程送回 EntryList。
+
+**跑一下看看**：下面的程序让三个线程分别待在三个区域里，再打印它们的状态。
+
+```java
+public class MonitorStateDemo {
+    static final Object lock = new Object();
+
+    public static void main(String[] args) throws Exception {
+        Thread waiter = new Thread(() -> {
+            synchronized (lock) {
+                try { lock.wait(); } catch (InterruptedException ignored) { }  // 进 WaitSet，并释放锁
+                System.out.println("waiter 被唤醒并重新拿到了锁");
+            }
+        }, "waiter");
+
+        Thread owner = new Thread(() -> {
+            synchronized (lock) {
+                sleep(3000);        // 拿着锁睡觉：sleep 不释放锁
+                lock.notify();      // 把 waiter 从 WaitSet 挪到 EntryList
+                sleep(3000);        // 仍然拿着锁
+            }
+        }, "owner");
+
+        Thread blocked = new Thread(() -> {
+            synchronized (lock) { }  // 抢不到锁，进 EntryList
+        }, "blocked");
+
+        waiter.start();  Thread.sleep(100);
+        owner.start();   Thread.sleep(100);
+        blocked.start(); Thread.sleep(300);
+        System.out.println("阶段一  owner=" + owner.getState()
+                + "  blocked=" + blocked.getState() + "  waiter=" + waiter.getState());
+
+        Thread.sleep(3000);  // 此时 owner 已经 notify，但还没释放锁
+        System.out.println("阶段二  owner=" + owner.getState()
+                + "  blocked=" + blocked.getState() + "  waiter=" + waiter.getState());
+
+        owner.join(); blocked.join(); waiter.join();
+    }
+
+    static void sleep(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException ignored) { }
+    }
+}
+```
+
+JDK 17 实测输出：
+
+```text
+阶段一  owner=TIMED_WAITING  blocked=BLOCKED  waiter=WAITING
+阶段二  owner=TIMED_WAITING  blocked=BLOCKED  waiter=BLOCKED
+waiter 被唤醒并重新拿到了锁
+```
+
+- 阶段一：owner 拿着锁在 sleep，状态是 TIMED\_WAITING，但它仍然是 Owner，因为 **sleep 不释放锁**。blocked 在 EntryList，waiter 在 WaitSet。
+- 阶段二：owner 已经 notify，但还没退出同步块。waiter 从 WaitSet 被挪到了 EntryList，状态从 WAITING 变成了 **BLOCKED**，还要等 owner 释放锁后再去抢。
+
+程序运行时用 `jstack <进程号>` 看线程栈，能直接看到每个线程卡在 monitor 的哪个区域（阶段一，节选）：
+
+```text
+"waiter" ... in Object.wait()
+   java.lang.Thread.State: WAITING (on object monitor)
+    - waiting on <0x0000000697c1c210> (a java.lang.Object)
+
+"owner" ... waiting on condition
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+    - locked <0x0000000697c1c210> (a java.lang.Object)
+
+"blocked" ... waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+    - waiting to lock <0x0000000697c1c210> (a java.lang.Object)
+```
+
+| jstack 里的字样 | 含义 | 所在区域 |
+| --- | --- | --- |
+| `- locked <地址>` | 持有这把锁 | Owner |
+| `- waiting to lock <地址>` | 抢锁失败，正在排队 | EntryList |
+| `- waiting on <地址>` | 调用了 wait，在等通知 | WaitSet |
+| `- waiting to re-lock in wait() <地址>` | 已被 notify，正在重新抢锁（阶段二的 waiter） | EntryList |
+
+三个线程后面的地址都是 `0x0000000697c1c210`，说明它们围着同一个对象的 monitor。线上排查锁问题时，按这个地址把线程归类，就能看出谁拿着锁、谁在排队。注意：jstack 在 waiter 自己的栈帧下也会显示一行 `- locked`，那只表示它是在这个同步块里调用的 wait，锁其实已经释放了。
+
+线程在 monitor 里的流转：
+
+1. 抢锁：CAS 把 `_owner` 设为自己。如果 `_owner` 已经是自己，`_recursions++`（**这就是 synchronized 可重入的实现**）。
+2. 抢不到：先自适应自旋几轮，还抢不到就进入 `_cxq`，然后 park 挂起（BLOCKED）。
+3. 持锁线程调 `wait()`：释放锁，进入 `_WaitSet`。
+4. 其他线程调 `notify()`：把 WaitSet 里的一个线程移到 EntryList/cxq，它要**重新抢锁**。
+5. 释放锁：`_recursions` 减到 0 后清空 `_owner`，并唤醒一个等待线程。唤醒的线程要和刚好到来的新线程竞争，所以 **synchronized 是非公平锁**。
+
+**为什么等锁的队列有两个（\_cxq 和 \_EntryList）？** 新来的线程要并发地入队，用 CAS 压进 `_cxq` 最便宜（它是单向链表，后进先出）。释放锁时只有 Owner 一个线程在操作，它把 `_cxq` 里的线程挪到 `_EntryList`，再从 `_EntryList` 挑一个唤醒。这样“很多线程同时入队”只需要 CAS，“出队”完全不用额外同步。学习时把两者统称为“等锁队列”就够了。
+
+**monitor 什么时候创建、什么时候回收？** 锁膨胀时创建：轻量级锁遇到竞争，或者在锁里调用了 wait（3.4 节 MarkWordDemo 的第 5、7 行会验证这一点）。不再使用的 monitor 会被 JVM 回收（JDK 15 起由后台线程异步完成），对象回到无锁状态。所以常说的“锁不降级”，准确意思是：正在被使用的重量级锁，不会退回轻量级锁。
+
+重量级锁为什么“重”：park/unpark 最终依赖 OS 的 mutex/futex，线程挂起和唤醒要在用户态和内核态之间切换，一次可能要微秒级，而临界区代码可能只要几纳秒。
+
+把“进内核”展开，一次挂起的调用链大致是：`ObjectMonitor::enter` 自旋失败 → 调用当前线程的 park → 底层是 pthread 的互斥锁和条件变量 → 在 Linux 上最终是 `futex` 系统调用 → 内核把线程从运行队列里摘下，不再给它分配 CPU。唤醒时反过来再走一遍。这一来一回就是 1.3 节说的用户态、内核态切换。单元五的 `LockSupport.park()` 底层也是 pthread 条件变量，代价在同一个量级。
+
+**可重入**：同一线程拿到锁后，可以再次获取同一把锁而不会自己把自己堵住。意义：同步方法 A 调用同步方法 B、子类同步方法调 `super` 的同步方法，都不会死锁。实现：记录“持有者 + 计数”，加一次 +1，释放一次 -1，减到 0 才真正释放。
+
+### 3.3 wait 与 notify：在 Monitor 里等通知
+
+持有锁的线程发现条件还不满足（比如队列是空的），可以调用 `wait()` 让出锁、进 WaitSet 等着；别的线程把条件改好后，用 `notify()` 叫醒它。
+
+**sleep 与 wait 的区别**
+
+| 对比项 | `Thread.sleep()` | `Object.wait()` |
+| --- | --- | --- |
+| 所属类 | Thread 的静态方法 | Object 的实例方法 |
+| 是否释放锁 | **不释放** | **释放** monitor 锁 |
+| 使用前提 | 任意位置 | 必须在 `synchronized` 内，否则抛 `IllegalMonitorStateException` |
+| 唤醒方式 | 时间到自动醒 | notify/notifyAll、超时、中断 |
+| 用途 | 暂停执行 | 线程间协作（等条件） |
+
+- **sleep 会释放 CPU 吗？** 会，线程进入 TIMED\_WAITING，不参与调度；但它握着的锁不放。
+- **为什么 wait 定义在 Object 而不是 Thread？** 因为锁属于对象。每个对象都可以关联一个 monitor（3.2 节），wait 要释放的是“这个对象的锁”，并进入“这个对象的等待集合（WaitSet）”。sleep 和锁无关，只影响当前线程，所以在 Thread 上。
+- **为什么 wait 必须在 synchronized 里？** 机制上，只有 monitor 的 Owner 才能操作 WaitSet（3.2 节），没拿锁就调用会抛异常。设计上，这样规定是为了避免“丢失唤醒”：线程 A 判断条件不满足、还没来得及 wait，线程 B 就改了条件并 notify，A 再 wait 就永远等不到了。“判断条件 + wait”必须是原子的。
+
+**notify 与 notifyAll**
+
+- `notify()` 从该对象的 WaitSet 中唤醒一个线程，`notifyAll()` 唤醒全部，被唤醒的线程再竞争锁。
+- **notify 选哪个？** JVM 规范说是“任意一个”。HotSpot 实现中通常按进入 WaitSet 的顺序唤醒，但代码不能依赖这一点。
+- 多个线程等不同条件时（如 ABC 轮流打印），用 notify 可能叫醒“错的人”导致全员等待，所以要用 notifyAll，或者换成多个 Condition 精准唤醒。
+- 被唤醒后条件不一定成立（其他线程可能先抢到锁改了数据，或者发生虚假唤醒），所以**wait 必须放在 while 循环里**：
+
+```java
+synchronized (lock) {
+    while (!condition) {   // 不能用 if
+        lock.wait();
+    }
+    // do something
+}
+```
+
+“必须用 while”背后是 monitor 的一个设计选择。Java 采用的是 **Mesa 风格**：调用 notify 的线程继续执行，被唤醒的线程回到 EntryList，稍后再和别人一起抢锁（3.2 节的图）。它抢到锁之前，别的线程完全可能先进去把条件改掉。另一种 **Hoare 风格**会在 notify 时立刻把锁交给被唤醒者，条件一定成立，可以用 if；但它要多做一次线程切换，实现也更复杂，Java、pthread 等主流实现都没有采用。
+
+### 3.4 对象头：锁的状态记在 Mark Word 里
+
+3.2 节说过，monitor 是需要时才分配的；平时锁的状态直接记在对象自己身上。这一节看一个对象在内存里长什么样，锁的状态记在哪几个比特里。
+
+**① 一个 Java 对象在堆里分三块**
+
+| 组成部分 | 大小（64 位 JVM，默认开启压缩指针） | 存什么、有什么用 |
+| --- | --- | --- |
+| 对象头 · Mark Word | 8 字节 | 对象的运行时状态：hashCode、GC 分代年龄、**锁状态**。synchronized 的锁就记在这里 |
+| 对象头 · 类型指针 | 4 字节 | 指向方法区（元空间）里这个类的元数据。`getClass()`、`instanceof`、调用重写的方法，都靠它找到对象属于哪个类 |
+| 对象头 · 数组长度 | 4 字节，只有数组才有 | `arr.length` 读的就是这里 |
+| 实例数据 | 各字段大小之和 | 字段的值，包括从父类继承的字段 |
+| 对齐填充 | 0\~7 字节 | HotSpot 要求对象大小是 8 的倍数，不够就补齐 |
+
+按这张表算：`new Object()` 的对象头是 8 + 4 = 12 字节，没有字段，补 4 字节凑成 **16 字节**；`new int[3]` 是 12 + 4（长度）+ 3 × 4 = 28 字节，补齐到 **32 字节**。在 JDK 17 上用 `Instrumentation.getObjectSize()` 实测，结果正是 16 和 32。
+
+**② Mark Word：对象的“状态栏”**
+
+Mark Word 只有 64 位，却要存好几样东西，所以它是**复用**的：JVM 先看最低 2 位的锁标志位，再决定怎么解读其余 62 位。两个顺手能记住的细节：
+
+- GC 分代年龄只有 4 位，最大是 15。这就是 `-XX:MaxTenuringThreshold` 最多只能设成 15 的原因。
+- hashCode 不是对象一创建就有的。第一次调用 `hashCode()` 时才算出来，写进这 31 位。
+
+加锁以后，这 64 位会被改写成别的内容（比如一个指针），锁标志位也跟着变：01 无锁，00 轻量级锁，10 重量级锁。所以**在对象这一侧，“锁”就是 Mark Word 里的几个比特**，任何对象都能当锁用。每种状态具体存什么，见下表，后面还会用代码把真实的比特打印出来。
+
+下表是 64 位 HotSpot 里，每种锁状态下这 64 位分别存什么：
 
 | 锁状态 | 其余位存什么（从高位到低位） | 偏向位 | 锁标志位 |
 | --- | --- | --- | --- |
@@ -813,7 +805,7 @@ int[] 第一个元素的偏移量 = 16
 
 逐行看：
 
-- **前两行**：第一个字段从第 12 字节开始，数组元素从第 16 字节开始，印证了 1.5 节“对象头 12 字节，数组多 4 字节长度”。
+- **前两行**：第一个字段从第 12 字节开始，数组元素从第 16 字节开始，印证了上面“对象头 12 字节，数组多 4 字节长度”。
 - **第 1、2 行**：刚创建时 hash 位全是 0；调用 hashCode() 后，中间那段 `5c647e05` 正好等于 hashCode() 的返回值。hashCode 确实存在 Mark Word 里，而且是第一次调用时才写进去的。
 - **第 3、4 行**：单线程加锁，末两位变成 00（轻量级锁），前面变成一个地址，指向当前线程栈上的 Lock Record。原来的 Mark Word 被搬到 Lock Record 里保管，释放锁时原样换回，所以第 4 行和第 2 行一模一样。
 - **第 5 行**：另一个线程来抢，末两位变成 10，锁膨胀成重量级，地址指向 ObjectMonitor。抢锁线程是 BLOCKED，待在 EntryList。
@@ -833,33 +825,6 @@ int[] 第一个元素的偏移量 = 16
 ```
 
 最后一行就是证据：hashCode 和线程指针要用 Mark Word 里同一块位置，两者只能留一个。第二、三行则对应 3.5 节的“之后同一个线程再进入，只比较线程 ID”：偏向信息一直留在对象头里。
-
-### 3.4 ObjectMonitor：重量级锁的实体
-
-HotSpot 里的 monitor 是 C++ 对象 `ObjectMonitor`。1.5 节诊室类比里的三个区域，对应到源码是这几个字段：
-
-| 字段 | 含义 |
-| --- | --- |
-| `_owner` | 当前持有锁的线程 |
-| `_recursions` | 重入次数，释放时减到 0 才真正释放 |
-| `_cxq` / `_EntryList` | 抢锁失败、等待获取锁的线程（BLOCKED） |
-| `_WaitSet` | 调用了 `wait()` 的线程（WAITING） |
-
-线程在 monitor 里的流转：
-
-1. 抢锁：CAS 把 `_owner` 设为自己。如果 `_owner` 已经是自己，`_recursions++`（**这就是 synchronized 可重入的实现**）。
-2. 抢不到：先自适应自旋几轮，还抢不到就进入 `_cxq`，然后 park 挂起（BLOCKED）。
-3. 持锁线程调 `wait()`：释放锁，进入 `_WaitSet`。
-4. 其他线程调 `notify()`：把 WaitSet 里的一个线程移到 EntryList/cxq，它要**重新抢锁**。
-5. 释放锁：`_recursions` 减到 0 后清空 `_owner`，并唤醒一个等待线程。唤醒的线程要和刚好到来的新线程竞争，所以 **synchronized 是非公平锁**。
-
-**为什么等锁的队列有两个（\_cxq 和 \_EntryList）？** 新来的线程要并发地入队，用 CAS 压进 `_cxq` 最便宜（它是单向链表，后进先出）。释放锁时只有 Owner 一个线程在操作，它把 `_cxq` 里的线程挪到 `_EntryList`，再从 `_EntryList` 挑一个唤醒。这样“很多线程同时入队”只需要 CAS，“出队”完全不用额外同步。学习时把两者统称为“等锁队列”就够了。
-
-**monitor 什么时候创建、什么时候回收？** 锁膨胀时创建：轻量级锁遇到竞争，或者在锁里调用了 wait（3.3 节 MarkWordDemo 的第 5、7 行）。不再使用的 monitor 会被 JVM 回收（JDK 15 起由后台线程异步完成），对象回到无锁状态。所以常说的“锁不降级”，准确意思是：正在被使用的重量级锁，不会退回轻量级锁。
-
-重量级锁为什么“重”：park/unpark 最终依赖 OS 的 mutex/futex，线程挂起和唤醒要在用户态和内核态之间切换，一次可能要微秒级，而临界区代码可能只要几纳秒。
-
-把“进内核”展开，一次挂起的调用链大致是：`ObjectMonitor::enter` 自旋失败 → 调用当前线程的 park → 底层是 pthread 的互斥锁和条件变量 → 在 Linux 上最终是 `futex` 系统调用 → 内核把线程从运行队列里摘下，不再给它分配 CPU。唤醒时反过来再走一遍。这一来一回就是 1.3 节说的用户态、内核态切换。单元五的 `LockSupport.park()` 底层也是 pthread 条件变量，代价在同一个量级。
 
 ### 3.5 锁升级全过程
 
@@ -888,7 +853,7 @@ JDK 1.6 之前 synchronized 一上来就是重量级锁。1.6 引入了分级：
 
 **③ 重量级锁：针对“真正的激烈竞争”**
 
-- Mark Word 指向 ObjectMonitor，抓不到锁的线程进队列并挂起（3.4 节）。
+- Mark Word 指向 ObjectMonitor，抓不到锁的线程进队列并挂起（3.2 节）。
 - 挂起虽然贵，但竞争激烈时比一直自旋空转 CPU 更划算。
 
 一句话串起来：偏向锁连 CAS 都省了，轻量级锁用 CAS 代替了内核互斥量，重量级锁才真的让线程睡觉。
@@ -899,39 +864,29 @@ JDK 1.6 之前 synchronized 一上来就是重量级锁。1.6 引入了分级：
 - **锁消除**：JIT 通过逃逸分析发现锁对象不会被其他线程访问，就把锁去掉。例如方法内部的 `StringBuffer.append()`。
 - **锁粗化**：循环里反复加解同一把锁，合并成一次大范围的加锁。
 
-### 3.7 synchronized 与 ReentrantLock
-
-| 对比项 | synchronized | ReentrantLock |
-| --- | --- | --- |
-| 实现层面 | JVM 关键字，C++ 实现 | JDK 类，基于 AQS（Java 代码） |
-| 加解锁 | 自动，异常也会释放 | 手动，必须在 finally 里 unlock |
-| 可重入 | 是（\_recursions） | 是（state 计数） |
-| 公平性 | 只有非公平 | 默认非公平，可选公平 |
-| 可中断 | 不可中断，等锁时没法响应 interrupt | `lockInterruptibly()` |
-| 超时获取 | 不支持 | `tryLock(timeout)` |
-| 条件队列 | 一个（wait/notify） | 多个 Condition，可精准唤醒 |
-| 等待线程状态 | BLOCKED | WAITING（park） |
-
-**怎么选**：简单互斥优先 synchronized，代码简洁、不会忘释放，且 JVM 持续优化。需要可中断、超时、公平、多条件时用 ReentrantLock。典型场景：防止死锁的 `tryLock`、生产者消费者的“非满/非空”两个 Condition。
-
-**可重入**：同一线程拿到锁后，可以再次获取同一把锁而不会自己把自己堵住。意义：同步方法 A 调用同步方法 B、子类同步方法调 `super` 的同步方法，都不会死锁。实现：记录“持有者 + 计数”，加一次 +1，释放一次 -1，减到 0 才真正释放。
-
 ### 面试这样说
 
 **问：讲一下 synchronized 的底层原理。**
 
 > synchronized 是对象锁，底层靠 JVM 的 Monitor 实现。同步代码块编译后是 monitorenter 和 monitorexit 指令，同步方法是方法上的 ACC\_SYNCHRONIZED 标志。Monitor 里有三个关键结构：Owner 记录持有锁的线程，EntryList 放抢锁失败、处于 BLOCKED 的线程，WaitSet 放调用了 wait 的线程。线程抢锁就是把 Owner 设成自己，如果 Owner 已经是自己就把重入计数加一，所以它是可重入的；释放时唤醒 EntryList 里的线程重新竞争，新来的线程也能抢，所以它是非公平的。
 
+**问：sleep 和 wait 有什么区别？**
+
+> 我从四个角度说。一是归属，sleep 是 Thread 的静态方法，wait 是 Object 的方法。二是锁，sleep 不释放锁，wait 会释放锁。三是使用条件，wait 必须在 synchronized 里调用，否则抛 IllegalMonitorStateException。四是唤醒，sleep 到时间自动醒，wait 要靠 notify/notifyAll、超时或中断。wait 放在 Object 上，是因为锁是对象级别的，等待队列挂在对象的 monitor 上。
+
 **问：了解锁升级吗？**
 
 > JDK 1.6 之后 synchronized 有四种状态：无锁、偏向锁、轻量级锁、重量级锁，记录在对象头的 Mark Word 里，随竞争程度升级。偏向锁针对只有一个线程反复加锁，第一次用 CAS 写入线程 ID，之后只比较 ID；轻量级锁针对多个线程交替加锁，用 CAS 把 Mark Word 换成指向栈中 Lock Record 的指针；一旦 CAS 失败、出现真正的竞争，就膨胀成重量级锁，线程自旋后挂起，要进入内核态。补充一点，偏向锁因为撤销要 STW、收益小，JDK 15 起默认关闭了。
 
-**问：synchronized 和 Lock 有什么区别？**
+**问：说一下 Java 对象的内存布局，对象头里有什么？**
 
-> 第一，层面不同：synchronized 是 JVM 关键字，Lock 是 JDK 的接口，常用实现是基于 AQS 的 ReentrantLock。第二，使用方式：synchronized 自动释放，异常也会释放；Lock 要在 finally 里手动 unlock。第三，功能：Lock 支持公平锁、可中断、超时获取和多个 Condition 精准唤醒，synchronized 都不支持。两者都是可重入的悲观锁。竞争不激烈时 synchronized 有锁升级优化，性能差不多，所以简单场景优先 synchronized，需要高级功能时用 Lock。
+> 一个对象在堆里分三部分：对象头、实例数据和对齐填充。对象头里有 Mark Word 和类型指针，数组还多一个长度字段。Mark Word 在 64 位 JVM 上占 8 字节，存 hashCode、GC 分代年龄和锁状态，最低两位是锁标志位，加锁时这块内容会被改写成指向锁记录或 monitor 的指针。类型指针指向方法区里的类元数据，开启压缩指针时占 4 字节。实例数据是字段的值，对齐填充让对象大小凑成 8 的倍数，所以一个 new Object() 是 16 字节。和并发相关的是 Mark Word：重量级锁时它指向 ObjectMonitor，里面的 EntryList 放等锁的线程，WaitSet 放调用了 wait 的线程。
 
 ### 自测
 
+- [ ] wait 为什么必须在 synchronized 里，且要放在 while 里？
+- [ ] new Object() 占多少字节？分别是哪几部分？
+- [ ] Monitor 的三个区域各对应哪种线程状态？被 notify 的线程立刻就能执行吗？在 jstack 里会看到什么？
 - [ ] synchronized 抛异常为什么能自动释放锁？
 - [ ] 无锁、偏向、轻量、重量四种状态下 Mark Word 分别存什么？
 - [ ] 偏向锁为什么被废弃？
@@ -968,7 +923,7 @@ JDK 1.6 之前 synchronized 一上来就是重量级锁。1.6 引入了分级：
 CAS(V, E, N)：如果内存位置 V 的值等于预期值 E，就把它更新为 N，返回成功；否则什么都不做，返回失败。**比较和交换是一条指令完成的**，中间不会被打断。
 
 - 硬件：x86 的 `cmpxchg` 指令，多核下加 `lock` 前缀，锁住该缓存行（早期是锁总线）。`lock` 前缀同时起到内存屏障作用，所以 CAS 也有 volatile 读写的内存语义。
-- Java：`sun.misc.Unsafe` 的 native 方法 `compareAndSwapInt(Object o, long offset, int expected, int x)`，用“对象 + 字段偏移量”定位内存。偏移量就是字段离对象开头有多少字节：对象头占 12 字节（1.5 节），所以在 JDK 17 上实测，AtomicInteger 里 value 的偏移量正好是 12。JDK 9 之后推荐用 `VarHandle`。
+- Java：`sun.misc.Unsafe` 的 native 方法 `compareAndSwapInt(Object o, long offset, int expected, int x)`，用“对象 + 字段偏移量”定位内存。偏移量就是字段离对象开头有多少字节：对象头占 12 字节（3.4 节），所以在 JDK 17 上实测，AtomicInteger 里 value 的偏移量正好是 12。JDK 9 之后推荐用 `VarHandle`。
 
 `AtomicInteger` 的自增实现（JDK 8）：
 
@@ -1037,7 +992,7 @@ LongAdder 的做法：
 3. CAS base 失败（说明有竞争），就创建 cells，每个线程按自己的哈希值（probe）去 CAS 对应的 Cell。冲突多了会扩容 cells，最大到 CPU 核数。
 4. `sum()` = base + 所有 Cell 的值。
 
-- Cell 类加了 `@Contended` 注解做缓存行填充，避免**伪共享**（不同变量落在同一个缓存行里（缓存行见 2.2 节），互相让对方缓存失效）。
+- Cell 类加了 `@Contended` 注解做缓存行填充，避免**伪共享**（不同变量落在同一个缓存行里（缓存行见 2.3 节），互相让对方缓存失效）。
 - 代价：`sum()` 不加锁，边计算别人边加，所以不是精确的快照；内存占用更大。
 
 **AtomicLong vs LongAdder**：需要精确实时值或 CAS 语义（如生成序列号）用 AtomicLong；高并发统计计数（QPS、调用次数）用 LongAdder。这个“分段分散热点”的思路和 ConcurrentHashMap 的 size 统计（`CounterCell`）完全一样。
@@ -1096,6 +1051,8 @@ CAS 是工具，AQS 是用它搭的框架。AQS 里用 CAS 的地方：修改 `s
 | CountDownLatch | 还要等几次 countDown |
 | ReentrantReadWriteLock | 高 16 位 = 读锁持有次数，低 16 位 = 写锁重入次数 |
 
+state 是 volatile 的：释放锁时写 state，加锁时读 state。按 happens-before 的 volatile 规则（2.4 节），上一个线程在临界区里改过的普通变量，下一个拿到锁的线程一定能看到。这就是 AQS 能当锁用的可见性保证。
+
 **② 同步队列**：CLH 锁队列的变体，一个双向链表。每个节点 Node 封装一个等待线程：
 
 ```java
@@ -1115,7 +1072,7 @@ private transient volatile Node head, tail;
 
 **③ LockSupport.park/unpark**：挂起和唤醒指定线程。和 wait/notify 的区别：不需要先拿锁；可以精确唤醒某个线程；基于“许可证”，**先 unpark 再 park 也不会阻塞**（许可证最多 1 个，不累加），所以不会丢失唤醒。
 
-“许可证”在 HotSpot 里就是一个计数：每个 Java 线程都有一个 `Parker` 对象，里面是一个只取 0 或 1 的 `_counter`，加上一把 pthread 互斥锁和一个条件变量。`unpark` 把 `_counter` 置为 1，如果线程正睡着就叫醒它；`park` 先看 `_counter`，是 1 就置 0 后直接返回，是 0 才在条件变量上睡下（这一步要进内核，见 3.4 节）。“先 unpark 再 park 不阻塞”和“许可证最多 1 个”，都是这个 0/1 计数的直接结果。
+“许可证”在 HotSpot 里就是一个计数：每个 Java 线程都有一个 `Parker` 对象，里面是一个只取 0 或 1 的 `_counter`，加上一把 pthread 互斥锁和一个条件变量。`unpark` 把 `_counter` 置为 1，如果线程正睡着就叫醒它；`park` 先看 `_counter`，是 1 就置 0 后直接返回，是 0 才在条件变量上睡下（这一步要进内核，见 3.2 节）。“先 unpark 再 park 不阻塞”和“许可证最多 1 个”，都是这个 0/1 计数的直接结果。
 
 ### 5.2 模板方法：子类要实现什么
 
@@ -1308,7 +1265,24 @@ try {
 - `lockInterruptibly()`：等锁时可以被 interrupt 打断并抛异常。synchronized 和 `lock()` 是不可中断的，只能一直等。
 - `tryLock()` / `tryLock(time, unit)`：拿不到立即或超时返回 false，是避免死锁的常用手段。注意：无参的 `tryLock()` 即使在公平锁上也会插队。
 
-### 6.2 ReentrantReadWriteLock：读写分离
+### 6.2 synchronized 与 ReentrantLock 怎么选
+
+两种锁都学过了，放在一起对比：
+
+| 对比项 | synchronized | ReentrantLock |
+| --- | --- | --- |
+| 实现层面 | JVM 关键字，C++ 实现 | JDK 类，基于 AQS（Java 代码） |
+| 加解锁 | 自动，异常也会释放 | 手动，必须在 finally 里 unlock |
+| 可重入 | 是（\_recursions） | 是（state 计数） |
+| 公平性 | 只有非公平 | 默认非公平，可选公平 |
+| 可中断 | 不可中断，等锁时没法响应 interrupt | `lockInterruptibly()` |
+| 超时获取 | 不支持 | `tryLock(timeout)` |
+| 条件队列 | 一个（wait/notify） | 多个 Condition，可精准唤醒 |
+| 等待线程状态 | BLOCKED | WAITING（park） |
+
+**怎么选**：简单互斥优先 synchronized，代码简洁、不会忘释放，且 JVM 持续优化。需要可中断、超时、公平、多条件时用 ReentrantLock。典型场景：防止死锁的 `tryLock`、生产者消费者的“非满/非空”两个 Condition。
+
+### 6.3 ReentrantReadWriteLock：读写分离
 
 - 规则：**读读共享，读写互斥，写写互斥**。适合读多写少，比如本地缓存。
 - 一个 AQS 的 state 拆成两半用：**高 16 位记读锁次数，低 16 位记写锁重入次数**。每个线程的读重入次数存在 ThreadLocal 里。
@@ -1316,7 +1290,7 @@ try {
 - **持有读锁能再拿写锁吗？** 不能，读锁不能升级。假设两个线程都持有读锁并同时想升级，写锁要求没有任何读者，就会互相等对方释放读锁，死锁。
 - 问题：读者太多时写线程可能饥饿。
 
-### 6.3 StampedLock：带乐观读的读写锁
+### 6.4 StampedLock：带乐观读的读写锁
 
 - JDK 8 引入，**不基于 AQS**（自己实现了类似的 CLH 队列和 state）。
 - 三种模式：写锁、悲观读锁、**乐观读**。乐观读完全不加锁，只拿一个版本号 stamp，读完后校验期间有没有写入。
@@ -1332,7 +1306,7 @@ if (!sl.validate(stamp)) {             // 期间有人写过
 }
 ```
 
-### 6.4 Semaphore：限制同时访问的线程数
+### 6.5 Semaphore：限制同时访问的线程数
 
 - 用途：限流、控制并发数（如最多 10 个线程同时访问数据库）。`new Semaphore(1)` 可以当互斥锁用。
 - 原理：**state = 剩余许可证数**，共享模式。
@@ -1351,7 +1325,7 @@ try {
 }
 ```
 
-### 6.5 CountDownLatch：一个等多个
+### 6.6 CountDownLatch：一个等多个
 
 - 用途：主线程等 N 个子任务都完成再继续。小林coding 场景题“3 个线程并发执行，第 4 个等它们全部完成”就用它。
 - 原理：**state = 计数值 N**。
@@ -1371,7 +1345,7 @@ latch.await();   // 建议生产中用 await(timeout, unit)
 System.out.println("三个任务都完成了");
 ```
 
-### 6.6 CyclicBarrier：多个互相等
+### 6.7 CyclicBarrier：多个互相等
 
 - 用途：N 个线程都到达屏障点后一起继续，可以重复使用（分阶段计算）。
 - 原理：**不是直接继承 AQS，而是基于 ReentrantLock + Condition**。内部维护 `count`，每个线程调 `await()` 就加锁、count 减 1。不为 0 就 `trip.await()`；为 0 的那个线程先执行构造时传入的 `barrierAction`，再 `trip.signalAll()`，并重置 count、换一个新的 generation，这就是“可循环”。
@@ -1384,7 +1358,7 @@ System.out.println("三个任务都完成了");
 | 底层 | AQS 共享模式 | ReentrantLock + Condition |
 | 回调 | 无 | 可以指定 barrierAction |
 
-### 6.7 除了 synchronized，还有哪些同步手段
+### 6.8 除了 synchronized，还有哪些同步手段
 
 面试问这个问题时，按本文的单元顺序回答最清楚：`volatile`（单元二）、CAS 和原子类（单元四）、`ReentrantLock` / 读写锁 / `StampedLock`、`Semaphore` / `CountDownLatch` / `CyclicBarrier`（本单元）、并发容器和阻塞队列（单元十）、`ThreadLocal`（单元九）。
 
@@ -1393,6 +1367,10 @@ System.out.println("三个任务都完成了");
 **问：ReentrantLock 的实现原理？**
 
 > ReentrantLock 是基于 AQS 的可重入互斥锁，内部有公平和非公平两种 Sync，默认非公平。加锁时用 CAS 把 state 从 0 改成 1，成功就把 exclusiveOwnerThread 设成自己；如果持有者就是自己，state 加一，这就是重入；失败就进入 AQS 队列 park 等待。释放时 state 减到 0 才真正释放，并唤醒队列里的下一个线程。公平锁和非公平锁只差一步：公平锁抢锁前先用 hasQueuedPredecessors 看有没有人排在前面，非公平锁直接抢。非公平锁少了一次挂起和唤醒，吞吐量更高，但可能让排队的线程饥饿。
+
+**问：synchronized 和 Lock 有什么区别？**
+
+> 第一，层面不同：synchronized 是 JVM 关键字，Lock 是 JDK 的接口，常用实现是基于 AQS 的 ReentrantLock。第二，使用方式：synchronized 自动释放，异常也会释放；Lock 要在 finally 里手动 unlock。第三，功能：Lock 支持公平锁、可中断、超时获取和多个 Condition 精准唤醒，synchronized 都不支持。两者都是可重入的悲观锁。竞争不激烈时 synchronized 有锁升级优化，性能差不多，所以简单场景优先 synchronized，需要高级功能时用 Lock。
 
 **问：如何控制某个方法允许并发访问的线程数？**
 
@@ -1591,7 +1569,7 @@ final void runWorker(Worker w) {
 | 批量数据导入（如上线前把千万级数据从数据库同步到 ES） | 分页查询，每页交给线程池一个任务，全部完成后再汇报 | 线程池 + CountDownLatch |
 | 接口数据汇总（订单详情要调订单、商品、物流三个服务） | 三个互不依赖的远程调用并行发出，最后合并。总耗时从三者之和降到最慢的那一个 | CompletableFuture + 自定义线程池（见 8.3） |
 | 异步处理非核心逻辑（搜索时保存搜索记录、下单后发通知） | 主流程直接返回，次要逻辑交给线程池，失败不影响主流程 | 线程池 / Spring `@Async` |
-| 限流（某个耗资源的接口最多 N 个线程同时调用） | 进入方法先 `tryAcquire`，拿不到就快速失败 | Semaphore（见 6.4） |
+| 限流（某个耗资源的接口最多 N 个线程同时调用） | 进入方法先 `tryAcquire`，拿不到就快速失败 | Semaphore（见 6.5） |
 
 批量导入的核心代码（业务方法名换成你自己项目里的）：
 
@@ -2315,7 +2293,7 @@ public class MiniThreadPool {
 - **DCL 单例**：见 2.7 节。
 - **手写死锁 + 修复**：见 10.3 节。
 - **用 AQS 实现可重入公平锁**：见 5.7 节。
-- **两线程各加 50 次的结果范围**：见 2.1 节。
+- **两线程各加 50 次的结果范围**：见 2.2 节。
 
 ## 附录 高频面试题速查表
 

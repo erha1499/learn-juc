@@ -230,7 +230,7 @@ def apply_rules(blocks):
 ANSWERS = json.loads((ROOT / 'content' / 'answers.json').read_text(encoding='utf-8'))
 
 MOTTO = {
-    '一': 'Java 线程就是内核线程；线程之间的排队、等待和唤醒，都发生在对象的 monitor 上。',
+    '一': 'Java 线程就是内核线程，创建、切换、阻塞都有成本。',
     '二': '写进了自己的缓存，不等于别人看得见。',
     '三': '锁记在对象头里，能不进内核就不进内核。',
 }

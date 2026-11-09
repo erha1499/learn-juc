@@ -1,8 +1,8 @@
 {
   "为什么局部变量是线程安全的，成员变量不是？": "局部变量在<b>虚拟机栈</b>里，栈是每个线程私有的，每个线程调用方法都拿到自己的一份。成员变量在<b>堆</b>上的对象里，多个线程拿到同一个对象的引用，就会读写同一份数据。注意：局部变量如果指向一个会被其他线程拿到的对象，那个对象本身仍然是共享的。",
   "等 ReentrantLock 的线程是什么状态？为什么？": "<b>WAITING</b>，jstack 里显示 <code>WAITING (parking)</code>。ReentrantLock 基于 AQS，抢不到锁的线程用 <code>LockSupport.park()</code> 挂起；BLOCKED 只用于等 synchronized 的 monitor。",
-  "wait 为什么必须在 synchronized 里，且要放在 while 里？": "必须在 synchronized 里：WaitSet 属于对象的 monitor，只有 Owner 才能往里放人、叫人，否则抛 <code>IllegalMonitorStateException</code>；设计上也是为了让“判断条件 + wait”成为原子操作，避免丢失唤醒。要放在 while 里：Java 的 monitor 是 Mesa 风格，被 notify 只是回到 EntryList 重新抢锁，真正拿到锁时条件可能已经被别的线程改掉，也可能是虚假唤醒，所以要重新检查（1.8 节的演示里 C 就是这样又睡回去的）。",
-  "catch 到 InterruptedException 后为什么要再调一次 interrupt()？": "sleep、wait 抛出 InterruptedException 时会<b>先清除中断标志</b>。如果 catch 里不恢复，外层循环的 <code>isInterrupted()</code> 读到 false，中断请求就被吞掉了，线程停不下来，上层代码也不知道发生过中断（1.9 节演示的“什么都不做”分支）。",
+  "wait 为什么必须在 synchronized 里，且要放在 while 里？": "必须在 synchronized 里：WaitSet 属于对象的 monitor，只有 Owner 才能往里放人、叫人，否则抛 <code>IllegalMonitorStateException</code>；设计上也是为了让“判断条件 + wait”成为原子操作，避免丢失唤醒。要放在 while 里：Java 的 monitor 是 Mesa 风格，被 notify 只是回到 EntryList 重新抢锁，真正拿到锁时条件可能已经被别的线程改掉，也可能是虚假唤醒，所以要重新检查（3.3 节的演示里 C 就是这样又睡回去的）。",
+  "catch 到 InterruptedException 后为什么要再调一次 interrupt()？": "sleep、wait 抛出 InterruptedException 时会<b>先清除中断标志</b>。如果 catch 里不恢复，外层循环的 <code>isInterrupted()</code> 读到 false，中断请求就被吞掉了，线程停不下来，上层代码也不知道发生过中断（1.6 节演示的“什么都不做”分支）。",
   "new Object() 占多少字节？分别是哪几部分？": "<b>16 字节</b>（64 位 JVM、开启压缩指针）：Mark Word 8 字节 + 类型指针 4 字节 = 12 字节对象头，没有实例数据，再补 4 字节对齐填充，凑成 8 的倍数。",
   "Monitor 的三个区域各对应哪种线程状态？被 notify 的线程立刻就能执行吗？在 jstack 里会看到什么？": "Owner：持有锁的线程，通常是 RUNNABLE（在锁里 sleep 时是 TIMED_WAITING）；EntryList：等锁的线程，BLOCKED；WaitSet：调用了 wait 的线程，WAITING 或 TIMED_WAITING。被 notify 的线程<b>不能立刻执行</b>：它只是从 WaitSet 挪到 EntryList，变成 BLOCKED，要等 Owner 释放锁并抢到锁之后才继续。jstack 里显示 <code>waiting to re-lock in wait()</code>。",
   "有了 MESI，为什么还需要 volatile？": "MESI 本身能保证缓存一致，但 CPU 为了不等待，在它前面加了<b>写缓冲</b>和<b>失效队列</b>，于是会出现“写了别人暂时看不到”和“顺序看起来被打乱”。另外 JIT 还可能把读提到循环外。volatile 让 JIT 插入内存屏障（清空写缓冲、处理失效队列），并禁止这类编译优化。",
@@ -14,6 +14,6 @@
   "偏向锁为什么被废弃？": "撤销偏向要等全局安全点（STW），代价高；它只在“始终一个线程反复加锁”的场景收益明显，比如老式的 Vector、Hashtable，而现代应用多是线程池并发，收益很小；实现复杂、维护成本高。JDK 15 起默认关闭并废弃（JEP 374）。",
   "调用过 hashCode 的对象，加锁会怎样？": "不能再进入偏向锁：hashCode 和线程指针要用 Mark Word 里同一块位置，只能留一个。这样的对象加锁直接走轻量级锁；如果对象正处于偏向状态时调用 hashCode，偏向会被撤销。轻量级锁和重量级锁没有这个问题，原 Mark Word 保存在 Lock Record 或 monitor 里。",
   "为什么 synchronized 是非公平的？": "释放锁时被唤醒的线程，要和刚好到达、正在自旋的新线程一起竞争，新线程往往先抢到；而且新来的等锁线程先压进 <code>_cxq</code>（后进先出），本身就不是严格的先来先得。",
-  "用代码怎么证明 hashCode 存在 Mark Word 里？": "用 <code>Unsafe.getLong(obj, 0L)</code> 读出对象开头的 8 字节（就是 Mark Word），右移 8 位取 31 位，和 <code>obj.hashCode()</code> 的返回值比较。3.3 节在 JDK 17 上实测，两者都是 <code>0x5c647e05</code>。",
-  "只有一个线程、在锁里调用一次 wait()，锁会变成什么状态？为什么？": "<b>重量级锁</b>（锁标志 10）。WaitSet 只存在于 ObjectMonitor 里，轻量级锁没有地方放等待的线程，所以调用 wait 会强制锁膨胀，哪怕根本没有竞争（3.3 节 MarkWordDemo 第 6、7 行）。"
+  "用代码怎么证明 hashCode 存在 Mark Word 里？": "用 <code>Unsafe.getLong(obj, 0L)</code> 读出对象开头的 8 字节（就是 Mark Word），右移 8 位取 31 位，和 <code>obj.hashCode()</code> 的返回值比较。3.4 节在 JDK 17 上实测，两者都是 <code>0x5c647e05</code>。",
+  "只有一个线程、在锁里调用一次 wait()，锁会变成什么状态？为什么？": "<b>重量级锁</b>（锁标志 10）。WaitSet 只存在于 ObjectMonitor 里，轻量级锁没有地方放等待的线程，所以调用 wait 会强制锁膨胀，哪怕根本没有竞争（3.4 节 MarkWordDemo 第 6、7 行）。"
 }
