@@ -1752,65 +1752,30 @@ public class PrintABCCondition {
 
 **写法三：Semaphore**（最简洁：许可证像接力棒一样传递）
 
-```java
-import java.util.concurrent.Semaphore;
-
-public class PrintABCSemaphore {
-    private static final Semaphore sA = new Semaphore(1);  // A 先走
-    private static final Semaphore sB = new Semaphore(0);
-    private static final Semaphore sC = new Semaphore(0);
-    private static final int TIMES = 10;
-
-    public static void main(String[] args) {
-        new Thread(() -> print('A', sA, sB)).start();
-        new Thread(() -> print('B', sB, sC)).start();
-        new Thread(() -> print('C', sC, sA)).start();
-    }
-
-    private static void print(char ch, Semaphore mine, Semaphore next) {
-        for (int i = 0; i < TIMES; i++) {
-            try {
-                mine.acquire();                    // 拿到自己的许可才能打印
-                System.out.print(ch);
-                next.release();                    // 把许可交给下一个
-            } catch (InterruptedException e) {
-                return;
-            }
-        }
-    }
-}
-```
-
-**写法四：LockSupport park/unpark**（不用锁，展示你懂 AQS 的底层）
+每个线程一个信号量，只有 A 的初始许可是 1，B、C 是 0。线程先拿自己的许可，打印完把许可交给下一个线程，不需要状态变量。每个线程循环执行的核心三行：
 
 ```java
-import java.util.concurrent.locks.LockSupport;
-import java.util.function.Supplier;
-
-public class PrintABCPark {
-    private static Thread tA, tB, tC;
-    private static volatile int state = 0;        // 不用锁，必须 volatile
-    private static final int TIMES = 10;
-
-    public static void main(String[] args) {
-        tA = new Thread(() -> print('A', 0, () -> tB));
-        tB = new Thread(() -> print('B', 1, () -> tC));
-        tC = new Thread(() -> print('C', 2, () -> tA));
-        tA.start(); tB.start(); tC.start();
-    }
-
-    private static void print(char ch, int myTurn, Supplier<Thread> next) {
-        for (int i = 0; i < TIMES; i++) {
-            while (state != myTurn) {
-                LockSupport.park();                // 没轮到就睡；醒来后重新检查
-            }
-            System.out.print(ch);
-            state = (myTurn + 1) % 3;              // volatile 写，下一个线程一定看得到
-            LockSupport.unpark(next.get());        // 先 unpark 后 park 也不会丢唤醒
-        }
-    }
-}
+mine.acquire();          // 拿到自己的许可才能打印（A 用 sA，B 用 sB，C 用 sC）
+System.out.print(ch);
+next.release();          // 把许可交给下一个（A 交给 sB，B 交给 sC，C 交给 sA）
 ```
+
+完整代码见 `examples/PrintABCSemaphore.java`。
+
+**写法四：LockSupport park/unpark**（不用锁）
+
+思路和写法一相同，只是“等”换成 `park()`，“叫醒”换成 `unpark(下一个线程)`。因为没有锁保证可见性，状态变量必须是 volatile：
+
+```java
+while (state != myTurn) {
+    LockSupport.park();              // 没轮到就睡；醒来后重新检查
+}
+System.out.print(ch);
+state = (myTurn + 1) % 3;            // state 是 volatile，下一个线程一定看得到
+LockSupport.unpark(next.get());      // 叫醒下一个线程；先 unpark 后 park 也不会丢唤醒
+```
+
+完整代码见 `examples/PrintABCPark.java`。
 
 **变形**：N 个线程轮流打印，把 3 换成 N，用写法二的数组形式；“A 打 1 次、B 打 2 次、C 打 3 次”，把 `System.out.print(ch)` 换成循环打印即可。
 
