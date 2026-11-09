@@ -32,18 +32,13 @@
 
 ### 怎么用这份文档
 
-每个单元都按同一个顺序组织，建议照这个节奏学：
+每个单元都按同一个节奏组织：
 
-1. **看学习目标**：单元开头标出了「必会 / 加分 / 了解」三档。时间紧就只啃「必会」，面试想拉开差距再看「加分」。
-2. **先看现象，再学原理**：能用代码复现的问题（死循环停不下来、票卖超了），先给出可运行的代码和真实运行结果，再解释为什么。
-3. **读原理**：每节按「为什么需要 → 底层怎么实现」展开，图和源码只保留理解所需的部分。标题里带「底层预备」的小节（2.3 CPU 缓存）是后文反复引用的地基，第一次读不要跳过。
-4. **背「面试这样说」**：单元末尾给出 30 秒左右的口述回答，引用块里的话可以直接说出口。它是原理的压缩版，先读懂原理再背，才不会被追问问倒。
-5. **做自测**：合上文档自己口述一遍，答不上来再回看正文。
-6. **动手**：手写题（单元十一）建议在 IDE 里亲手敲一遍并跑通。手撕时最容易在 `while` 还是 `if`、`notify` 还是 `notifyAll` 上出错。
+1. **先看现象，再学原理**：单元开头列出学完能做到的几件事。能用代码复现的问题（死循环停不下来、票卖超了），先给出可运行的代码和真实结果，再解释为什么。标着「深入一层（可跳过）」的部分是源码和底层细节，第一遍可以跳过。
+2. **动手**：网页版在关键位置嵌了可以一步一步执行的演示；文中的示例代码都在仓库的 `examples/` 目录里，建议亲手跑一遍。单元十一的手写题一定要在 IDE 里自己敲。
+3. **检验**：单元末尾的「面试这样说」是原理的口述压缩版，读懂原理后再看。最后合上文档做自测题，答不上来就回看正文。
 
-版本说明：以 JDK 8 为基准，涉及 JDK 15（偏向锁废弃）、JDK 17、JDK 21（虚拟线程）的变化会单独标出。文中所有可运行的示例代码都已在 JDK 17 上实际跑过。
-
-内容依据：[小林coding · Java 并发面试题](https://xiaolincoding.com/interview/juc.html)，[JavaGuide 并发常见面试题（上）](https://javaguide.cn/java/concurrent/java-concurrent-questions-01.html)、[（中）](https://javaguide.cn/java/concurrent/java-concurrent-questions-02.html)、[（下）](https://javaguide.cn/java/concurrent/java-concurrent-questions-03.html)。
+源码分析以 JDK 8 为准，示例代码都在 JDK 17 上实际跑过。
 
 ## 单元一 线程基础：线程是什么、怎么跑、怎么停
 
@@ -1980,9 +1975,7 @@ public class MiniThreadPool {
 
 ## 附录 高频面试题速查表
 
-面试前快速过一遍。一句话答法答不出展开部分，就回到对应单元重读。
-
-这张表是各单元「面试这样说」的压缩版：先用一句话答出框架，面试官追问时再展开成单元末尾那段口述。场景题另见：“项目里哪里用到多线程”看 7.9，“控制方法并发数”看 6.5，“T1、T2、T3 按顺序执行”看 11.4。
+这张表是各单元「面试这样说」的压缩版，面试前快速过一遍：先用一句话答出框架，追问时再展开成单元末尾那段口述；答不上来就回到对应单元重读。场景题另见：“项目里哪里用到多线程”看 7.9，“控制方法并发数”看 6.5，“T1、T2、T3 按顺序执行”看 11.4。
 
 | 问题 | 一句话答法 | 单元 |
 | --- | --- | --- |
@@ -1991,9 +1984,8 @@ public class MiniThreadPool {
 | start 和 run 的区别 | start 调 native start0 创建新线程再回调 run；直接 run 只是普通方法调用 | 一 |
 | 线程有哪些状态 | NEW、RUNNABLE、BLOCKED、WAITING、TIMED\_WAITING、TERMINATED | 一 |
 | BLOCKED 和 WAITING 的区别 | BLOCKED 只在等 synchronized 锁；WAITING 是主动 wait/join/park，要别人唤醒 | 一 |
-| Java 对象由哪几部分组成 | 对象头（Mark Word 8 字节 + 类型指针 4 字节，数组再加 4 字节长度）+ 实例数据 + 对齐填充；new Object() 是 16 字节 | 一 |
-| Monitor 有哪几个区域 | Owner 持有锁；EntryList 放等锁的线程（BLOCKED）；WaitSet 放调了 wait 的线程（WAITING）；notify 只是把线程挪回 EntryList | 一 |
-| sleep 和 wait 的区别 | sleep 不释放锁、在 Thread 上；wait 释放锁、在 Object 上、必须在 synchronized 内 | 一 |
+| Monitor 有哪几个区域 | Owner 持有锁；EntryList 放等锁的线程（BLOCKED）；WaitSet 放调了 wait 的线程（WAITING）；notify 只是把线程挪回 EntryList | 三 |
+| sleep 和 wait 的区别 | sleep 不释放锁、在 Thread 上；wait 释放锁、在 Object 上、必须在 synchronized 内 | 三 |
 | 如何停止线程 | interrupt + 线程内检查中断标志；catch 到 InterruptedException 后要重新设置标志 | 一 |
 | 并发三大特性 | 可见性（CPU 缓存）、有序性（重排序）、原子性（线程切换） | 二 |
 | 什么是 JMM | 屏蔽硬件差异的规范，用 happens-before 规定一个线程的写何时对另一个线程可见 | 二 |
@@ -2003,7 +1995,7 @@ public class MiniThreadPool {
 | synchronized 怎么实现可重入 | ObjectMonitor 记录 owner 和重入计数 \_recursions，减到 0 才释放 | 三 |
 | 锁升级过程 | 无锁 → 偏向（写线程 ID）→ 轻量级（CAS Lock Record）→ 重量级（monitor + park），一般不降级 | 三 |
 | 偏向锁为什么被废弃 | 撤销要等安全点、开销大；现代应用多线程竞争多，收益小且代码复杂；JDK 15 起默认关闭 | 三 |
-| synchronized 和 ReentrantLock 区别 | JVM vs API；后者支持公平、可中断、超时、多个 Condition，但要手动 unlock | 三、六 |
+| synchronized 和 ReentrantLock 区别 | JVM vs API；后者支持公平、可中断、超时、多个 Condition，但要手动 unlock | 六 |
 | CAS 是什么，有什么问题 | CPU 的 cmpxchg 原子指令；问题是 ABA、自旋开销、只能管一个变量 | 四 |
 | ABA 怎么解决 | 加版本号：AtomicStampedReference | 四 |
 | AtomicLong 和 LongAdder | LongAdder 把热点分散到 base + Cell\[\]，高并发更快，但 sum 不是精确快照 | 四 |

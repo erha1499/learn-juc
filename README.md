@@ -12,7 +12,7 @@
 
 | 入口 | 内容 | 状态 |
 | --- | --- | --- |
-| [交互学习手册](https://erha1499.github.io/learn-juc/)（`docs/index.html`） | 完整正文 + 嵌入式演示 + 可展开的面试回答 + 带答案的自测题 | 单元一到三已完成，含 14 个演示 |
+| [交互学习手册](https://erha1499.github.io/learn-juc/)（`docs/index.html`） | 完整正文 + 嵌入式演示 + 可展开的面试回答 + 带答案的自测题 | 单元一到三已完成，含 13 个演示 |
 | [可视化实验室](https://erha1499.github.io/learn-juc/lab/index.html)（`docs/lab/index.html`） | 5 个独立实验：count++ 竞态、CPU 缓存可见性、synchronized 与 Monitor、AQS 排队、线程池模拟器 | 可用 |
 | [完整文字版](content/handbook.md)（`content/handbook.md`） | 11 个单元的全部正文，GitHub 上可直接阅读 | 完成 |
 
@@ -22,7 +22,7 @@
 
 | 单元 | 主题 | 一句话 | 交互版 |
 | --- | --- | --- | --- |
-| 一 | 线程基础 | Java 线程就是内核线程；排队、等待和唤醒都发生在对象的 monitor 上 | 已迁移 |
+| 一 | 线程基础 | Java 线程就是内核线程，创建、切换、阻塞都有成本 | 已迁移 |
 | 二 | JMM 与 volatile | 写进了自己的缓存，不等于别人看得见 | 已迁移 |
 | 三 | synchronized | 锁记在对象头里，能不进内核就不进内核 | 已迁移 |
 | 四 | CAS 与原子类 | 先比较再交换，失败了就重来 | 文字版 |
@@ -94,7 +94,7 @@ python3 site/build.py
 
 ## 路线图
 
-- [x] 单元一到三的交互版（14 个嵌入式演示）
+- [x] 单元一到三的交互版（13 个嵌入式演示）
 - [ ] 单元四到六迁移：CAS 自旋、AQS 排队、Semaphore / CountDownLatch
 - [ ] 单元七到十一迁移：线程池、CompletableFuture、ThreadLocal、并发容器与死锁、手写题
 - [ ] 新演示：ThreadLocal 引用链与 GC、ABC 打印的 Condition 精准唤醒、死锁的环形等待

@@ -1,6 +1,6 @@
 # 示例代码
 
-手册里引用的全部示例，都在 JDK 17（64 位 HotSpot）上编译运行过。每个文件都是独立的类，没有包名，进入本目录后直接编译运行：
+手册里引用的示例和几个补充实验，都在 JDK 17（64 位 HotSpot）上编译运行过。每个文件都是独立的类，没有包名，进入本目录后直接编译运行：
 
 ```bash
 cd examples
@@ -10,18 +10,23 @@ java MarkWordDemo
 
 用到 `sun.misc.Unsafe` 的程序编译时会提示“内部专用 API”，可以忽略。
 
-## 底层观察（单元一到三）
+## 底层观察（单元二到四）
 
 | 文件 | 对应章节 | 看什么 |
 | --- | --- | --- |
 | `ForeverLoop.java` | 2.0 | `stop` 不加 volatile 时循环停不下来，加上后立刻结束 |
 | `TicketDemo.java` | 2.0 | 4 个线程卖票，余票对不上，而且每次结果不一样 |
-| `MonitorStateDemo.java` | 1.5 | 三个线程分别待在 Owner、EntryList、WaitSet；运行期间用 `jstack <进程号>` 看线程栈 |
-| `SyncBytecode.java` | 3.2 | 用 `javap -c -v SyncBytecode` 查看 `monitorenter`、两个 `monitorexit` 和异常表 |
-| `MarkWordDemo.java` | 3.3 | 读出对象头的 64 位，看无锁、轻量级锁、重量级锁的比特变化 |
-| `BiasDemo.java` | 3.3 | 偏向锁的 Mark Word。需要加参数运行：`java -XX:+UseBiasedLocking -XX:BiasedLockingStartupDelay=0 BiasDemo`（JDK 15 到 17 可用，JDK 18 起参数已移除） |
-| `FieldOffsetDemo.java` | 1.5、4.2 | 字段在对象里的偏移量，以及 `AtomicInteger.value` 的偏移量 12 |
-| `agent/` | 1.5 | 用 `Instrumentation.getObjectSize` 测对象大小，运行方法见下 |
+| `SyncBytecode.java` | 2.2、3.1 | 用 `javap -c -v SyncBytecode` 查看 `count++` 的三条指令、`monitorenter`、两个 `monitorexit` 和异常表 |
+| `MonitorStateDemo.java` | 3.2 | 三个线程分别待在 Owner、EntryList、WaitSet；运行期间用 `jstack <进程号>` 看线程栈 |
+| `MarkWordDemo.java` | 3.4 | 读出对象头的 64 位，看无锁、轻量级锁、重量级锁的比特变化 |
+
+## 补充实验（正文没有展开）
+
+| 文件 | 相关章节 | 看什么 |
+| --- | --- | --- |
+| `BiasDemo.java` | 3.5 | 偏向锁的 Mark Word。需要加参数运行：`java -XX:+UseBiasedLocking -XX:BiasedLockingStartupDelay=0 BiasDemo`（JDK 15 到 17 可用，JDK 18 起参数已移除） |
+| `FieldOffsetDemo.java` | 4.2 | 字段在对象里的偏移量，以及 CAS 用到的 `AtomicInteger.value` 偏移量 12 |
+| `agent/` | 无 | 用 `Instrumentation.getObjectSize` 测对象大小（`new Object()` 是 16 字节），运行方法见下 |
 
 `agent/` 需要先打成 Java Agent：
 
