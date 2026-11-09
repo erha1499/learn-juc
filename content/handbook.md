@@ -1348,7 +1348,7 @@ log.info("全部 {} 页导入完成", pages);
 
 - `Callable` 是“有返回值的任务”，`Future` 是“拿结果的凭证”。提交 Callable 到线程池就拿到一个 Future。
 - Future 的方法：`get()`（阻塞等结果）、`get(timeout)`、`isDone()`、`cancel(mayInterrupt)`、`isCancelled()`。
-- **FutureTask** 同时实现了 Runnable 和 Future，所以既能交给线程执行，又能拿结果。内部是一个状态机：`NEW → COMPLETING → NORMAL / EXCEPTIONAL`，以及 `CANCELLED`、`INTERRUPTED`。调 `get()` 的线程在任务没完成时进入一个等待链表并 park，任务完成时逐个 unpark。
+- **FutureTask** 同时实现了 Runnable 和 Future，所以既能交给线程执行，又能拿结果。
 
 **Future 的不足**：
 
@@ -1413,7 +1413,7 @@ CompletableFuture.allOf(f1, f2, f3).join();   // allOf 本身返回 Void，结�
 - 自定义线程池可以按业务隔离、按 IO 密集型设大小、设拒绝策略、给线程命名。
 - 另一个坑：**父任务和子任务用同一个线程池**，父任务占满线程并 join 子任务，子任务在队列里永远拿不到线程，形成死锁。父子任务要用不同的线程池。
 
-### 8.6 实现原理（了解即可）
+#### 深入一层（可跳过）：后续动作是怎么被触发的
 
 CompletableFuture 内部有两个关键字段：`volatile Object result`（结果或异常）和 `volatile Completion stack`（依赖它的后续动作，一个用 CAS 压栈的链表）。调用 thenApply 时，如果结果已经有了就直接执行；否则把动作压入 stack。任务完成时 CAS 写入 result，再调 `postComplete()` 依次弹出并触发后续动作。这也是“volatile + CAS”套路。
 
