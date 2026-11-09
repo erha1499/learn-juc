@@ -1540,7 +1540,7 @@ static class Entry extends WeakReference<ThreadLocal<?>> {
 
 ## 单元十 并发容器与死锁
 
-本单元的核心：并发容器是前面所有工具的综合应用——ConcurrentHashMap 用 CAS + synchronized + LongAdder 思路，阻塞队列用 ReentrantLock + Condition。死锁则是用锁不当的典型后果。
+本单元的核心：并发容器是前面所有工具的综合应用——ConcurrentHashMap 用 CAS + synchronized + volatile，阻塞队列用 ReentrantLock + Condition。死锁则是用锁不当的典型后果。
 
 **学完这个单元，你能：**
 
@@ -1550,20 +1550,29 @@ static class Entry extends WeakReference<ThreadLocal<?>> {
 
 ### 10.1 ConcurrentHashMap 怎么保证线程安全
 
+先回忆 HashMap 的结构：一个数组，每个格子叫一个**桶**；hash 落到同一个桶的元素串成链表，链表太长时转成红黑树。HashMap 不是线程安全的，多个线程同时 put 可能丢数据。
+
 **JDK 7**：`Segment` 数组 + HashEntry 数组。Segment 继承 ReentrantLock，默认 16 个，不同 Segment 互不影响（分段锁），最多支持 16 个线程同时写。
 
-**JDK 8**：去掉 Segment，和 HashMap 一样是 Node 数组 + 链表/红黑树，**锁粒度细化到单个桶**。`put` 流程：
+**JDK 8**：去掉 Segment，结构和 HashMap 一样，**锁粒度细化到单个桶**。记住三点：
 
-1. 计算 hash。数组未初始化就先初始化（用 CAS 修改 `sizeCtl` 保证只有一个线程初始化）。
-2. 目标桶为空 → **CAS** 放入新节点，不加锁。
-3. 桶头节点的 hash 为 `MOVED`（-1），说明正在扩容 → 当前线程**先帮忙迁移数据**，再重试。
-4. 否则 → **synchronized 锁住桶头节点**，在链表或红黑树里插入。链表长度 ≥ 8 且数组长度 ≥ 64 时转红黑树。
-5. `addCount` 统计元素个数：`baseCount` + `CounterCell[]`，就是单元四的 LongAdder 思路。超过阈值触发扩容。
+- **空桶用 CAS**：目标桶为空时，用 CAS 放入新节点，不加锁。
+- **非空桶锁头节点**：桶里已有元素时，用 synchronized 锁住桶的头节点，再插入链表或红黑树。不同的桶互不影响。
+- **读不加锁**：Node 的 `val` 和 `next` 是 volatile 的，get 总能读到最新值。
 
-- **get 完全不加锁**：Node 的 `val` 和 `next` 是 volatile 的，保证读到最新值。
+常被追问的几个细节：
+
 - **为什么用 synchronized 而不是 ReentrantLock**：锁粒度只是一个桶，竞争很小，大多停留在轻量级锁；不需要每个节点都继承 AQS，节省内存。
 - **为什么不允许 null 的 key 和 value**：`get` 返回 null 时会有歧义，分不清是“不存在”还是“值就是 null”。HashMap 可以再调 `containsKey` 确认，但并发下两次调用之间数据可能已变，没法确认。
 - **复合操作不是原子的**：`if (!map.containsKey(k)) map.put(k, v)` 仍然有竞态条件，要用 `putIfAbsent`、`computeIfAbsent`、`merge`。
+
+#### 深入一层（可跳过）：put 的完整流程
+
+1. 计算 hash。数组未初始化就先初始化（用 CAS 修改 `sizeCtl` 保证只有一个线程初始化）。
+2. 目标桶为空 → CAS 放入新节点，不加锁。
+3. 桶头节点的 hash 为 `MOVED`（-1），说明正在扩容 → 当前线程先帮忙迁移数据，再重试。
+4. 否则 → synchronized 锁住桶头节点，在链表或红黑树里插入。链表长度 ≥ 8 且数组长度 ≥ 64 时转红黑树。
+5. `addCount` 统计元素个数：`baseCount` + `CounterCell[]`，就是单元四的 LongAdder 思路。超过阈值触发扩容。
 
 ### 10.2 其他常用并发容器
 
@@ -1625,8 +1634,6 @@ void transfer(Account from, Account to, int amount) {
     }
 }
 ```
-
-**避免**：在分配资源前判断系统是否会进入不安全状态，经典算法是银行家算法。工程里很少用，知道名字即可。
 
 **排查**：
 
