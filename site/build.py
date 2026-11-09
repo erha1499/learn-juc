@@ -179,6 +179,20 @@ def render_block(b):
     raise SystemExit('未知块：' + t)
 
 
+# ---------- “深入一层”折叠块 ----------
+# Markdown 里写成 `#### 深入一层（可跳过）：标题`，网页里渲染成默认收起的 <details>，
+# 范围到下一个标题为止。
+DEEP_CLOSE = '</div></details>'
+
+
+def deep_open_html(text):
+    m = re.match(r'^深入一层(?:（可跳过）)?[：:]\s*(.+)$', text)
+    if not m:
+        raise SystemExit('四级标题只用于“深入一层（可跳过）：标题”：' + text)
+    return ('<details class="deep"><summary><span class="deep-tag">深入一层</span><span class="deep-t">%s</span>'
+            '<span class="deep-hint">第一遍可以跳过</span></summary><div class="deep-b">' % inline(m.group(1)))
+
+
 # ---------- 插入演示 ----------
 RULES = [  # (动作, 匹配方式, 匹配文本, 演示名)
     ('after', 'p', '按这张表算', 'objlayout'),
@@ -250,11 +264,22 @@ def render_unit(lines, cn):
                % (cn, html.escape(title), html.escape(sub), MOTTO[cn]))
     i = 0
     sec_open = False
+    deep_open = False
     mode = None
     quiz_n = 0
     while i < len(blocks):
         b = blocks[i]
+        if b['t'] == 'h' and b['lv'] == 4:
+            if deep_open:
+                out.append(DEEP_CLOSE)
+            out.append(deep_open_html(b['text']))
+            deep_open = True
+            i += 1
+            continue
         if b['t'] == 'h' and b['lv'] == 3:
+            if deep_open:
+                out.append(DEEP_CLOSE)
+                deep_open = False
             if sec_open:
                 out.append('</section>')
             text = b['text']
@@ -313,6 +338,8 @@ def render_unit(lines, cn):
             continue
         out.append(render_block(b))
         i += 1
+    if deep_open:
+        out.append(DEEP_CLOSE)
     if sec_open:
         out.append('</section>')
     return '\n'.join(out), toc, used, title
