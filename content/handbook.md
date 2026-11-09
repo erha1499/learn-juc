@@ -1493,7 +1493,7 @@ static class Entry extends WeakReference<ThreadLocal<?>> {
 
 - **key 是什么**：ThreadLocal 对象本身，而且是**弱引用**。**value 是什么**：你 set 进去的值，**强引用**。
 - 为什么 Map 放在 Thread 里，而不是 ThreadLocal 里放一个 `Map<Thread, T>`？这样线程结束时它的 Map 自然随之回收；且每个线程只访问自己的 Map，天然无竞争，不用加锁。
-- **哈希冲突怎么解决**：ThreadLocalMap 不是 HashMap，没有链表，用的是**开放地址法（线性探测）**，冲突了就往后找下一个空位。每个 ThreadLocal 的 hash 值都加上魔数 `0x61c88647`（和黄金分割比相关），使下标在 2 的幂次大小的数组上分布很均匀，冲突很少。初始容量 16，超过 2/3 扩容为 2 倍。
+- **哈希冲突怎么解决**：ThreadLocalMap 不是 HashMap，没有链表，用的是**开放地址法（线性探测）**，冲突了就往后找下一个空位。
 
 ### 9.3 内存泄漏：顺着引用链推
 
@@ -1522,10 +1522,7 @@ static class Entry extends WeakReference<ThreadLocal<?>> {
 
 - **InheritableThreadLocal**：在 `new Thread()` 时，把父线程的 `inheritableThreadLocals` 复制一份给子线程（默认是浅拷贝，可重写 `childValue` 定制）。
 - 它的问题：**只在创建线程时复制一次**。线程池里的线程是早就创建好的，后续提交任务时不会再复制，任务拿到的是创建线程那一刻的旧值。
-- **TransmittableThreadLocal（TTL）**：把“复制”的时机从创建线程改到**提交任务**。用 `TtlRunnable` 包装任务（或用 Java Agent 自动包装线程池），分三步：
-  1. capture：提交时抓取父线程当前的值。
-  2. replay：任务执行前把这些值设到工作线程上，并备份工作线程原来的值。
-  3. restore：执行完恢复原值。
+- **TransmittableThreadLocal（TTL）**：把“复制”的时机从创建线程改到**提交任务**。用 `TtlRunnable` 包装任务后，提交时抓取父线程当前的值，任务执行前设到工作线程上，执行完再恢复工作线程原来的值。
 - 应用：全链路追踪的 traceId、多租户的租户 ID 在异步线程中传递。
 
 ### 面试这样说
